@@ -16,7 +16,7 @@
 package com.google.android.exoplayer2.upstream;
 
 import android.content.Context;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.upstream.DataSource.Factory;
 
 /**
@@ -75,6 +75,11 @@ public final class DefaultDataSourceFactory implements Factory {
 
   @Override
   public DefaultDataSource createDataSource() {
-    return new DefaultDataSource(context, listener, baseDataSourceFactory.createDataSource());
+    DefaultDataSource dataSource =
+        new DefaultDataSource(context, baseDataSourceFactory.createDataSource());
+    if (listener != null) {
+      dataSource.addTransferListener(listener);
+    }
+    return dataSource;
   }
 }

@@ -3,7 +3,7 @@
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.messenger;
@@ -17,6 +17,7 @@ public class NotificationsService extends Service {
 
     @Override
     public void onCreate() {
+        super.onCreate();
         ApplicationLoader.postInitApplication();
     }
 
@@ -31,6 +32,7 @@ public class NotificationsService extends Service {
     }
 
     public void onDestroy() {
+        super.onDestroy();
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
         if (preferences.getBoolean("pushService", true)) {
             Intent intent = new Intent("org.telegram.start");

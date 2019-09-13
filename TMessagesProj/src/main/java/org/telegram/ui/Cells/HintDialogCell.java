@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -21,9 +21,11 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.ContactsController;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.UserObject;
+import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AvatarDrawable;
@@ -40,6 +42,7 @@ public class HintDialogCell extends FrameLayout {
     private int lastUnreadCount;
     private int countWidth;
     private StaticLayout countLayout;
+    private TLRPC.User currentUser;
 
     private long dialog_id;
     private int currentAccount = UserConfig.selectedAccount;
@@ -54,23 +57,30 @@ public class HintDialogCell extends FrameLayout {
         nameTextView = new TextView(context);
         nameTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         nameTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-        nameTextView.setMaxLines(2);
+        nameTextView.setMaxLines(1);
         nameTextView.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        nameTextView.setLines(2);
+        nameTextView.setLines(1);
         nameTextView.setEllipsize(TextUtils.TruncateAt.END);
         addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 6, 64, 6, 0));
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(100), MeasureSpec.EXACTLY));
+        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(86), MeasureSpec.EXACTLY));
     }
 
-    public void checkUnreadCounter(int mask) {
+    public void update(int mask) {
+        if ((mask & MessagesController.UPDATE_MASK_STATUS) != 0) {
+            if (currentUser != null) {
+                currentUser = MessagesController.getInstance(currentAccount).getUser(currentUser.id);
+                imageView.invalidate();
+                invalidate();
+            }
+        }
         if (mask != 0 && (mask & MessagesController.UPDATE_MASK_READ_DIALOG_MESSAGE) == 0 && (mask & MessagesController.UPDATE_MASK_NEW_MESSAGE) == 0) {
             return;
         }
-        TLRPC.TL_dialog dialog = MessagesController.getInstance(currentAccount).dialogs_dict.get(dialog_id);
+        TLRPC.Dialog dialog = MessagesController.getInstance(currentAccount).dialogs_dict.get(dialog_id);
         if (dialog != null && dialog.unread_count != 0) {
             if (lastUnreadCount != dialog.unread_count) {
                 lastUnreadCount = dialog.unread_count;
@@ -94,30 +104,28 @@ public class HintDialogCell extends FrameLayout {
         int uid = (int) dialog_id;
         TLRPC.FileLocation photo = null;
         if (uid > 0) {
-            TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(uid);
-            avatarDrawable.setInfo(user);
+            currentUser = MessagesController.getInstance(currentAccount).getUser(uid);
+            avatarDrawable.setInfo(currentUser);
         } else {
             TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-uid);
             avatarDrawable.setInfo(chat);
+            currentUser = null;
         }
     }
 
     public void setDialog(int uid, boolean counter, CharSequence name) {
         dialog_id = uid;
-        TLRPC.FileLocation photo = null;
         if (uid > 0) {
-            TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(uid);
+            currentUser = MessagesController.getInstance(currentAccount).getUser(uid);
             if (name != null) {
                 nameTextView.setText(name);
-            } else if (user != null) {
-                nameTextView.setText(ContactsController.formatName(user.first_name, user.last_name));
+            } else if (currentUser != null) {
+                nameTextView.setText(UserObject.getFirstName(currentUser));
             } else {
                 nameTextView.setText("");
             }
-            avatarDrawable.setInfo(user);
-            if (user != null && user.photo != null) {
-                photo = user.photo.photo_small;
-            }
+            avatarDrawable.setInfo(currentUser);
+            imageView.setImage(ImageLocation.getForUser(currentUser, false), "50_50", avatarDrawable, currentUser);
         } else {
             TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-uid);
             if (name != null) {
@@ -128,13 +136,11 @@ public class HintDialogCell extends FrameLayout {
                 nameTextView.setText("");
             }
             avatarDrawable.setInfo(chat);
-            if (chat != null && chat.photo != null) {
-                photo = chat.photo.photo_small;
-            }
+            currentUser = null;
+            imageView.setImage(ImageLocation.getForChat(chat, false), "50_50", avatarDrawable, chat);
         }
-        imageView.setImage(photo, "50_50", avatarDrawable);
         if (counter) {
-            checkUnreadCounter(0);
+            update(0);
         } else {
             countLayout = null;
         }
@@ -143,16 +149,26 @@ public class HintDialogCell extends FrameLayout {
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
         boolean result = super.drawChild(canvas, child, drawingTime);
-        if (child == imageView && countLayout != null) {
-            int top = AndroidUtilities.dp(6);
-            int left = AndroidUtilities.dp(54);
-            int x = left - AndroidUtilities.dp(5.5f);
-            rect.set(x, top, x + countWidth + AndroidUtilities.dp(11), top + AndroidUtilities.dp(23));
-            canvas.drawRoundRect(rect, 11.5f * AndroidUtilities.density, 11.5f * AndroidUtilities.density, MessagesController.getInstance(currentAccount).isDialogMuted(dialog_id) ? Theme.dialogs_countGrayPaint : Theme.dialogs_countPaint);
-            canvas.save();
-            canvas.translate(left, top + AndroidUtilities.dp(4));
-            countLayout.draw(canvas);
-            canvas.restore();
+        if (child == imageView) {
+            if (countLayout != null) {
+                int top = AndroidUtilities.dp(6);
+                int left = AndroidUtilities.dp(54);
+                int x = left - AndroidUtilities.dp(5.5f);
+                rect.set(x, top, x + countWidth + AndroidUtilities.dp(11), top + AndroidUtilities.dp(23));
+                canvas.drawRoundRect(rect, 11.5f * AndroidUtilities.density, 11.5f * AndroidUtilities.density, MessagesController.getInstance(currentAccount).isDialogMuted(dialog_id) ? Theme.dialogs_countGrayPaint : Theme.dialogs_countPaint);
+                canvas.save();
+                canvas.translate(left, top + AndroidUtilities.dp(4));
+                countLayout.draw(canvas);
+                canvas.restore();
+            }
+            if (currentUser != null && !currentUser.bot && (currentUser.status != null && currentUser.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime() || MessagesController.getInstance(currentAccount).onlinePrivacy.containsKey(currentUser.id))) {
+                int top = AndroidUtilities.dp(53);
+                int left = AndroidUtilities.dp(59);
+                Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                canvas.drawCircle(left, top, AndroidUtilities.dp(7), Theme.dialogs_onlineCirclePaint);
+                Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_chats_onlineCircle));
+                canvas.drawCircle(left, top, AndroidUtilities.dp(5), Theme.dialogs_onlineCirclePaint);
+            }
         }
         return result;
     }

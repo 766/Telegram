@@ -10,30 +10,33 @@ configurations {
     compile.exclude module: 'support-v4'
 }
 
+configurations.all {
+    exclude group: 'com.google.firebase', module: 'firebase-core'
+}
+
 dependencies {
-    compileOnly 'org.checkerframework:checker-qual:2.5.0'
+    implementation 'androidx.core:core:1.1.0-beta01'
+    implementation 'androidx.palette:palette:1.0.0'
+    implementation 'androidx.exifinterface:exifinterface:1.1.0-beta01'
+
+    compileOnly 'org.checkerframework:checker-qual:2.5.2'
     compileOnly 'org.checkerframework:checker-compat-qual:2.5.0'
-    implementation 'com.google.firebase:firebase-core:16.0.3'
-    implementation 'com.google.firebase:firebase-messaging:17.3.0'
-    implementation 'com.google.firebase:firebase-config:16.0.0'
-    implementation 'com.google.android.gms:play-services-maps:15.0.1'
-    implementation 'com.google.android.gms:play-services-vision:15.0.2'
-    implementation 'com.google.android.gms:play-services-wallet:16.0.0'
-    implementation 'com.google.android.gms:play-services-wearable:15.0.1'
-    implementation 'com.android.support:support-core-ui:28.0.0-rc01'
-    implementation 'com.android.support:support-compat:28.0.0-rc01'
-    implementation 'com.android.support:support-core-utils:28.0.0-rc01'
-    implementation 'com.android.support:support-v13:28.0.0-rc01'
-    implementation 'com.android.support:palette-v7:28.0.0-rc01'
-    implementation 'com.android.support:exifinterface:28.0.0-rc01'
-    implementation 'net.hockeyapp.android:HockeySDK:5.1.0'
+    implementation 'com.google.firebase:firebase-messaging:20.0.0'
+    implementation 'com.google.firebase:firebase-config:19.0.0'
+    implementation 'com.google.android.gms:play-services-maps:17.0.0'
+    implementation 'com.google.android.gms:play-services-auth:17.0.0'
+    implementation 'com.google.android.gms:play-services-vision:16.2.0'
+    implementation 'com.google.android.gms:play-services-wallet:17.0.0'
+    implementation 'com.google.android.gms:play-services-wearable:17.0.0'
+    implementation 'com.google.android.gms:play-services-location:17.0.0'
+    implementation 'net.hockeyapp.android:HockeySDK:5.2.0'
     implementation 'com.googlecode.mp4parser:isoparser:1.0.6'
     implementation 'com.stripe:stripe-android:2.0.2'
 }
 
 android {
     compileSdkVersion 28
-    buildToolsVersion '28.0.2'
+    buildToolsVersion '28.0.3'
 
     defaultConfig.applicationId = "org.telegram.messenger"
 
@@ -48,6 +51,7 @@ android {
     lintOptions {
         disable 'MissingTranslation'
         disable 'ExtraTranslation'
+        disable 'BlockedPrivateApi'
     }
 
     dexOptions {
@@ -85,6 +89,25 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
 
+        debugMultidex {
+            initWith debug
+            minifyEnabled false
+            multiDexEnabled true
+            dependencies {
+                implementation 'com.android.support:multidex:1.0.3'
+            }
+            manifestPlaceholders = [applicationClassName: "MultiDexApplicationLoader"]
+        }
+
+        HA {
+            debuggable false
+            jniDebuggable false
+            signingConfig signingConfigs.debug
+            applicationIdSuffix ".beta"
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+
         release {
             debuggable false
             jniDebuggable false
@@ -93,26 +116,23 @@ android {
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
-
-        foss {
-            debuggable false
-            jniDebuggable false
-            signingConfig signingConfigs.release
-        }
     }
-
-    defaultConfig.versionCode = 1358
 
     sourceSets.debug {
         manifest.srcFile 'config/debug/AndroidManifest.xml'
     }
 
-    sourceSets.release {
-        manifest.srcFile 'config/release/AndroidManifest.xml'
+    sourceSets.debugMultidex {
+        manifest.srcFile 'config/debug/AndroidManifest.xml'
+        java.srcDirs = ['src/multidex/java']
     }
 
-    sourceSets.foss {
-        manifest.srcFile 'config/foss/AndroidManifest.xml'
+    sourceSets.HA {
+        manifest.srcFile 'config/debug/AndroidManifest.xml'
+    }
+
+    sourceSets.release {
+        manifest.srcFile 'config/release/AndroidManifest.xml'
     }
 
     flavorDimensions "minApi"
@@ -223,24 +243,43 @@ android {
         }
     }
 
+    defaultConfig.versionCode = 1710
+
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            output.processManifest.doLast {
+            output.getProcessManifestProvider().get().doLast {
                 def abiVersion = variant.productFlavors.get(0).abiVersionCode
-                String manifestPath = "$manifestOutputDirectory/AndroidManifest.xml"
+
+                def outputDir = manifestOutputDirectory
+                File directory
+                if (outputDir instanceof File) {
+                    directory = outputDir
+                } else {
+                    directory = outputDir.get().asFile
+                }
+
+                String manifestPath = directory.toString() + "/AndroidManifest.xml"
                 def manifestContent = file(manifestPath).getText()
+
                 manifestContent = manifestContent.replace(String.format('android:versionCode="%d"', defaultConfig.versionCode), String.format('android:versionCode="%s"', defaultConfig.versionCode * 10 + abiVersion))
                 file(manifestPath).write(manifestContent)
             }
         }
     }
 
+    variantFilter { variant ->
+        def names = variant.flavors*.name
+        if (variant.buildType.name != "release" && !names.contains("afat")) {
+            setIgnore(true)
+        }
+    }
+
     defaultConfig {
         minSdkVersion 16
         targetSdkVersion 27
-        versionName "4.9.1"
+        versionName "5.11.0"
 
-		vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
+        vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
         externalNativeBuild {
             ndkBuild {
@@ -248,6 +287,8 @@ android {
                 abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
             }
         }
+
+        manifestPlaceholders = [applicationClassName: "ApplicationLoader"]
     }
 }
 

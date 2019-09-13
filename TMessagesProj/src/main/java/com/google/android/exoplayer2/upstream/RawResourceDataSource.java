@@ -19,7 +19,7 @@ import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.Resources;
 import android.net.Uri;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.text.TextUtils;
 import com.google.android.exoplayer2.C;
 import java.io.EOFException;
@@ -74,16 +74,19 @@ public final class RawResourceDataSource extends BaseDataSource {
    * @param context A context.
    */
   public RawResourceDataSource(Context context) {
-    this(context, null);
+    super(/* isNetwork= */ false);
+    this.resources = context.getResources();
   }
 
   /**
    * @param context A context.
    * @param listener An optional listener.
+   * @deprecated Use {@link #RawResourceDataSource(Context)} and {@link
+   *     #addTransferListener(TransferListener)}.
    */
+  @Deprecated
   public RawResourceDataSource(Context context, @Nullable TransferListener listener) {
-    super(/* isNetwork= */ false);
-    this.resources = context.getResources();
+    this(context);
     if (listener != null) {
       addTransferListener(listener);
     }
@@ -168,6 +171,7 @@ public final class RawResourceDataSource extends BaseDataSource {
     return uri;
   }
 
+  @SuppressWarnings("Finally")
   @Override
   public void close() throws RawResourceDataSourceException {
     uri = null;

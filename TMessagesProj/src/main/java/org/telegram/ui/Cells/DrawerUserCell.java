@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -19,6 +19,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ContactsController;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
@@ -88,14 +89,8 @@ public class DrawerUserCell extends FrameLayout {
         }
         avatarDrawable.setInfo(user);
         textView.setText(ContactsController.formatName(user.first_name, user.last_name));
-        TLRPC.FileLocation avatar;
-        if (user.photo != null && user.photo.photo_small != null && user.photo.photo_small.volume_id != 0 && user.photo.photo_small.local_id != 0) {
-            avatar = user.photo.photo_small;
-        } else {
-            avatar = null;
-        }
         imageView.getImageReceiver().setCurrentAccount(account);
-        imageView.setImage(avatar, "50_50", avatarDrawable);
+        imageView.setImage(ImageLocation.getForUser(user, false), "50_50", avatarDrawable, user);
         checkBox.setVisibility(account == UserConfig.selectedAccount ? VISIBLE : INVISIBLE);
     }
 
@@ -115,14 +110,14 @@ public class DrawerUserCell extends FrameLayout {
 
         String text = String.format("%d", counter);
         int countTop = AndroidUtilities.dp(12.5f);
-        int textWidth = (int) Math.ceil(Theme.chat_livePaint.measureText(text));
-        int countWidth = Math.max(AndroidUtilities.dp(12), textWidth);
+        int textWidth = (int) Math.ceil(Theme.dialogs_countTextPaint.measureText(text));
+        int countWidth = Math.max(AndroidUtilities.dp(10), textWidth);
         int countLeft = getMeasuredWidth() - countWidth - AndroidUtilities.dp(25);
 
         int x = countLeft - AndroidUtilities.dp(5.5f);
-        rect.set(x, countTop, x + countWidth + AndroidUtilities.dp(11), countTop + AndroidUtilities.dp(23));
+        rect.set(x, countTop, x + countWidth + AndroidUtilities.dp(14), countTop + AndroidUtilities.dp(23));
         canvas.drawRoundRect(rect, 11.5f * AndroidUtilities.density, 11.5f * AndroidUtilities.density, Theme.dialogs_countPaint);
 
-        canvas.drawText(text, rect.left + (rect.width() - textWidth) / 2 - AndroidUtilities.dp(0.5f), countTop + AndroidUtilities.dp(16), Theme.dialogs_countTextPaint);
+        canvas.drawText(text, rect.left + (rect.width() - textWidth) / 2, countTop + AndroidUtilities.dp(16), Theme.dialogs_countTextPaint);
     }
 }

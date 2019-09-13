@@ -15,12 +15,15 @@
  */
 package com.google.android.exoplayer2.offline;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
- * Identifies a given track by the index of the containing period, the index of the containing group
- * within the period, and the index of the track within the group.
+ * A key for a subset of media which can be separately loaded (a "stream").
+ *
+ * <p>The stream key consists of a period index, a group index within the period and a track index
+ * within the group. The interpretation of these indices depends on the type of media for which the
+ * stream key is used.
  */
 public final class StreamKey implements Comparable<StreamKey> {
 

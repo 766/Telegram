@@ -3,7 +3,7 @@
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Adapters;
@@ -17,7 +17,6 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.UserConfig;
-import org.telegram.messenger.support.widget.RecyclerView;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.Cells.DividerCell;
 import org.telegram.ui.Cells.LetterSectionCell;
@@ -26,6 +25,8 @@ import org.telegram.ui.Components.RecyclerListView;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+
+import androidx.recyclerview.widget.RecyclerView;
 
 public class PhonebookAdapter extends RecyclerListView.SectionsAdapter {
 
@@ -103,7 +104,7 @@ public class PhonebookAdapter extends RecyclerListView.SectionsAdapter {
             case 1:
             default:
                 view = new DividerCell(mContext);
-                view.setPadding(AndroidUtilities.dp(LocaleController.isRTL ? 28 : 72), 0, AndroidUtilities.dp(LocaleController.isRTL ? 72 : 28), 0);
+                view.setPadding(AndroidUtilities.dp(LocaleController.isRTL ? 28 : 72), AndroidUtilities.dp(8), AndroidUtilities.dp(LocaleController.isRTL ? 72 : 28), AndroidUtilities.dp(8));
                 break;
         }
         return new RecyclerListView.Holder(view);

@@ -1,14 +1,13 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Components;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -24,7 +23,6 @@ import org.telegram.messenger.FileLog;
 
 import java.util.ArrayList;
 
-@TargetApi(10)
 public class VideoTimelineView extends View {
 
     private long videoLength;
@@ -192,6 +190,7 @@ public class VideoTimelineView extends View {
 
     public void setColor(int color) {
         paint.setColor(color);
+        invalidate();
     }
 
     public void setVideoPath(String path) {
@@ -209,8 +208,8 @@ public class VideoTimelineView extends View {
         invalidate();
     }
 
-    public void setDelegate(VideoTimelineViewDelegate delegate) {
-        this.delegate = delegate;
+    public void setDelegate(VideoTimelineViewDelegate videoTimelineViewDelegate) {
+        delegate = videoTimelineViewDelegate;
     }
 
     private void reloadFrames(int frameNum) {

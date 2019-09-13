@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x
+ * This is the source code of Telegram for Android v. 5.x.x
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -16,8 +16,9 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.Emoji;
-import org.telegram.messenger.EmojiSuggestion;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
@@ -75,7 +76,7 @@ public class MentionCell extends LinearLayout {
         }
         avatarDrawable.setInfo(user);
         if (user.photo != null && user.photo.photo_small != null) {
-            imageView.setImage(user.photo.photo_small, "50_50", avatarDrawable);
+            imageView.setImage(ImageLocation.getForUser(user, false), "50_50", avatarDrawable, user);
         } else {
             imageView.setImageDrawable(avatarDrawable);
         }
@@ -101,13 +102,13 @@ public class MentionCell extends LinearLayout {
         nameTextView.invalidate();
     }
 
-    public void setEmojiSuggestion(EmojiSuggestion suggestion) {
+    public void setEmojiSuggestion(MediaDataController.KeywordResult suggestion) {
         imageView.setVisibility(INVISIBLE);
         usernameTextView.setVisibility(INVISIBLE);
-        StringBuilder stringBuilder = new StringBuilder(suggestion.emoji.length() + suggestion.label.length() + 3);
+        StringBuilder stringBuilder = new StringBuilder(suggestion.emoji.length() + suggestion.keyword.length() + 4);
         stringBuilder.append(suggestion.emoji);
-        stringBuilder.append("   ");
-        stringBuilder.append(suggestion.label);
+        stringBuilder.append("   :");
+        stringBuilder.append(suggestion.keyword);
         nameTextView.setText(Emoji.replaceEmoji(stringBuilder, nameTextView.getPaint().getFontMetricsInt(), AndroidUtilities.dp(20), false));
     }
 
@@ -116,7 +117,7 @@ public class MentionCell extends LinearLayout {
             imageView.setVisibility(VISIBLE);
             avatarDrawable.setInfo(user);
             if (user.photo != null && user.photo.photo_small != null) {
-                imageView.setImage(user.photo.photo_small, "50_50", avatarDrawable);
+                imageView.setImage(ImageLocation.getForUser(user, false), "50_50", avatarDrawable, user);
             } else {
                 imageView.setImageDrawable(avatarDrawable);
             }

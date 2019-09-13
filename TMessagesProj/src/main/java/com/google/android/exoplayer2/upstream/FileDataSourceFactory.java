@@ -15,7 +15,7 @@
  */
 package com.google.android.exoplayer2.upstream;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 /**
  * A {@link DataSource.Factory} that produces {@link FileDataSource}.
@@ -34,7 +34,11 @@ public final class FileDataSourceFactory implements DataSource.Factory {
 
   @Override
   public DataSource createDataSource() {
-    return new FileDataSource(listener);
+    FileDataSource dataSource = new FileDataSource();
+    if (listener != null) {
+      dataSource.addTransferListener(listener);
+    }
+    return dataSource;
   }
 
 }

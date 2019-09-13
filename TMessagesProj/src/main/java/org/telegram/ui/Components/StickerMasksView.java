@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Components;
@@ -20,35 +20,36 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.DataQuery;
+import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
-import org.telegram.messenger.support.widget.GridLayoutManager;
-import org.telegram.messenger.support.widget.RecyclerView;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.EmptyCell;
 import org.telegram.ui.Cells.StickerEmojiCell;
-import org.telegram.ui.StickerPreviewViewer;
+import org.telegram.ui.ContentPreviewViewer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 @SuppressWarnings("unchecked")
 public class StickerMasksView extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
 
     public interface Listener {
-        void onStickerSelected(TLRPC.Document sticker);
+        void onStickerSelected(Object parentObject, TLRPC.Document sticker);
         void onTypeChanged();
     }
 
     private int currentAccount = UserConfig.selectedAccount;
-    private ArrayList<TLRPC.TL_messages_stickerSet> stickerSets[] = new ArrayList[] {new ArrayList<>(), new ArrayList<>()};
-    private ArrayList<TLRPC.Document> recentStickers[] = new ArrayList[] {new ArrayList<>(), new ArrayList<>()};
-    private int currentType = DataQuery.TYPE_MASK;
+    private ArrayList<TLRPC.TL_messages_stickerSet>[] stickerSets = new ArrayList[]{new ArrayList<>(), new ArrayList<>()};
+    private ArrayList<TLRPC.Document>[] recentStickers = new ArrayList[]{new ArrayList<>(), new ArrayList<>()};
+    private int currentType = MediaDataController.TYPE_MASK;
 
     private Listener listener;
     private StickersGridAdapter stickersGridAdapter;
@@ -68,12 +69,12 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         setBackgroundColor(0xff222222);
         setClickable(true);
 
-        DataQuery.getInstance(currentAccount).checkStickers(DataQuery.TYPE_IMAGE);
-        DataQuery.getInstance(currentAccount).checkStickers(DataQuery.TYPE_MASK);
+        MediaDataController.getInstance(currentAccount).checkStickers(MediaDataController.TYPE_IMAGE);
+        MediaDataController.getInstance(currentAccount).checkStickers(MediaDataController.TYPE_MASK);
         stickersGridView = new RecyclerListView(context) {
             @Override
             public boolean onInterceptTouchEvent(MotionEvent event) {
-                boolean result = StickerPreviewViewer.getInstance().onInterceptTouchEvent(event, stickersGridView, StickerMasksView.this.getMeasuredHeight(), null);
+                boolean result = ContentPreviewViewer.getInstance().onInterceptTouchEvent(event, stickersGridView, StickerMasksView.this.getMeasuredHeight(), null);
                 return super.onInterceptTouchEvent(event) || result;
             }
         };
@@ -91,28 +92,21 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         stickersGridView.setPadding(0, AndroidUtilities.dp(4), 0, 0);
         stickersGridView.setClipToPadding(false);
         stickersGridView.setAdapter(stickersGridAdapter = new StickersGridAdapter(context));
-        stickersGridView.setOnTouchListener(new OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                return StickerPreviewViewer.getInstance().onTouch(event, stickersGridView, StickerMasksView.this.getMeasuredHeight(), stickersOnItemClickListener, null);
+        stickersGridView.setOnTouchListener((v, event) -> ContentPreviewViewer.getInstance().onTouch(event, stickersGridView, StickerMasksView.this.getMeasuredHeight(), stickersOnItemClickListener, null));
+        stickersOnItemClickListener = (view, position) -> {
+            if (!(view instanceof StickerEmojiCell)) {
+                return;
             }
-        });
-        stickersOnItemClickListener = new RecyclerListView.OnItemClickListener() {
-            @Override
-            public void onItemClick(View view, int position) {
-                if (!(view instanceof StickerEmojiCell)) {
-                    return;
-                }
-                StickerPreviewViewer.getInstance().reset();
-                StickerEmojiCell cell = (StickerEmojiCell) view;
-                if (cell.isDisabled()) {
-                    return;
-                }
-                TLRPC.Document document = cell.getSticker();
-                listener.onStickerSelected(document);
-                DataQuery.getInstance(currentAccount).addRecentSticker(DataQuery.TYPE_MASK, document, (int) (System.currentTimeMillis() / 1000), false);
-                MessagesController.getInstance(currentAccount).saveRecentSticker(document, true);
+            ContentPreviewViewer.getInstance().reset();
+            StickerEmojiCell cell = (StickerEmojiCell) view;
+            if (cell.isDisabled()) {
+                return;
             }
+            TLRPC.Document document = cell.getSticker();
+            Object parent = cell.getParentObject();
+            listener.onStickerSelected(parent, document);
+            MediaDataController.getInstance(currentAccount).addRecentSticker(MediaDataController.TYPE_MASK, parent, document, (int) (System.currentTimeMillis() / 1000), false);
+            MessagesController.getInstance(currentAccount).saveRecentSticker(parent, document, true);
         };
         stickersGridView.setOnItemClickListener(stickersOnItemClickListener);
         stickersGridView.setGlowColor(0xfff5f6f7);
@@ -132,37 +126,34 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         scrollSlidingTabStrip.setIndicatorHeight(AndroidUtilities.dp(1) + 1);
         addView(scrollSlidingTabStrip, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP));
         updateStickerTabs();
-        scrollSlidingTabStrip.setDelegate(new ScrollSlidingTabStrip.ScrollSlidingTabStripDelegate() {
-            @Override
-            public void onPageSelected(int page) {
-                if (page == 0) {
-                    if (currentType == DataQuery.TYPE_IMAGE) {
-                        currentType = DataQuery.TYPE_MASK;
-                    } else {
-                        currentType = DataQuery.TYPE_IMAGE;
-                    }
-                    if (listener != null) {
-                        listener.onTypeChanged();
-                    }
-                    recentStickers[currentType] = DataQuery.getInstance(currentAccount).getRecentStickers(currentType);
-                    stickersLayoutManager.scrollToPositionWithOffset(0, 0);
-                    updateStickerTabs();
-                    reloadStickersAdapter();
-                    checkDocuments();
-                    checkPanels();
-                    return;
+        scrollSlidingTabStrip.setDelegate(page -> {
+            if (page == 0) {
+                if (currentType == MediaDataController.TYPE_IMAGE) {
+                    currentType = MediaDataController.TYPE_MASK;
+                } else {
+                    currentType = MediaDataController.TYPE_IMAGE;
                 }
-                if (page == recentTabBum + 1) {
-                    stickersLayoutManager.scrollToPositionWithOffset(0, 0);
-                    return;
+                if (listener != null) {
+                    listener.onTypeChanged();
                 }
-                int index = page - 1 - stickersTabOffset;
-                if (index >= stickerSets[currentType].size()) {
-                    index = stickerSets[currentType].size() - 1;
-                }
-                stickersLayoutManager.scrollToPositionWithOffset(stickersGridAdapter.getPositionForPack(stickerSets[currentType].get(index)), 0);
-                checkScroll();
+                recentStickers[currentType] = MediaDataController.getInstance(currentAccount).getRecentStickers(currentType);
+                stickersLayoutManager.scrollToPositionWithOffset(0, 0);
+                updateStickerTabs();
+                reloadStickersAdapter();
+                checkDocuments();
+                checkPanels();
+                return;
             }
+            if (page == recentTabBum + 1) {
+                stickersLayoutManager.scrollToPositionWithOffset(0, 0);
+                return;
+            }
+            int index = page - 1 - stickersTabOffset;
+            if (index >= stickerSets[currentType].size()) {
+                index = stickerSets[currentType].size() - 1;
+            }
+            stickersLayoutManager.scrollToPositionWithOffset(stickersGridAdapter.getPositionForPack(stickerSets[currentType].get(index)), 0);
+            checkScroll();
         });
 
         stickersGridView.setOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -201,7 +192,7 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         stickersTabOffset = 0;
         int lastPosition = scrollSlidingTabStrip.getCurrentPosition();
         scrollSlidingTabStrip.removeTabs();
-        if (currentType == DataQuery.TYPE_IMAGE) {
+        if (currentType == MediaDataController.TYPE_IMAGE) {
             Drawable drawable = getContext().getResources().getDrawable(R.drawable.ic_masks_msk1);
             Theme.setDrawableColorByKey(drawable, Theme.key_chat_emojiPanelIcon);
             scrollSlidingTabStrip.addIconTab(drawable);
@@ -220,7 +211,7 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         }
 
         stickerSets[currentType].clear();
-        ArrayList<TLRPC.TL_messages_stickerSet> packs = DataQuery.getInstance(currentAccount).getStickerSets(currentType);
+        ArrayList<TLRPC.TL_messages_stickerSet> packs = MediaDataController.getInstance(currentAccount).getStickerSets(currentType);
         for (int a = 0; a < packs.size(); a++) {
             TLRPC.TL_messages_stickerSet pack = packs.get(a);
             if (pack.set.archived || pack.documents == null || pack.documents.isEmpty()) {
@@ -229,7 +220,9 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
             stickerSets[currentType].add(pack);
         }
         for (int a = 0; a < stickerSets[currentType].size(); a++) {
-            scrollSlidingTabStrip.addStickerTab(stickerSets[currentType].get(a).documents.get(0));
+            TLRPC.TL_messages_stickerSet set = stickerSets[currentType].get(a);
+            TLRPC.Document document = set.documents.get(0);
+            scrollSlidingTabStrip.addStickerTab(document, document, set);
         }
         scrollSlidingTabStrip.updateTabStyles();
         if (lastPosition != 0) {
@@ -252,9 +245,9 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         if (document == null) {
             return;
         }
-        DataQuery.getInstance(currentAccount).addRecentSticker(currentType, document, (int) (System.currentTimeMillis() / 1000), false);
+        MediaDataController.getInstance(currentAccount).addRecentSticker(currentType, null, document, (int) (System.currentTimeMillis() / 1000), false);
         boolean wasEmpty = recentStickers[currentType].isEmpty();
-        recentStickers[currentType] = DataQuery.getInstance(currentAccount).getRecentStickers(currentType);
+        recentStickers[currentType] = MediaDataController.getInstance(currentAccount).getRecentStickers(currentType);
         if (stickersGridAdapter != null) {
             stickersGridAdapter.notifyDataSetChanged();
         }
@@ -276,10 +269,10 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         if (stickersGridAdapter != null) {
             stickersGridAdapter.notifyDataSetChanged();
         }
-        if (StickerPreviewViewer.getInstance().isVisible()) {
-            StickerPreviewViewer.getInstance().close();
+        if (ContentPreviewViewer.getInstance().isVisible()) {
+            ContentPreviewViewer.getInstance().close();
         }
-        StickerPreviewViewer.getInstance().reset();
+        ContentPreviewViewer.getInstance().reset();
     }
 
     public void setListener(Listener value) {
@@ -289,14 +282,11 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.stickersDidLoaded);
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.recentImagesDidLoaded);
-        AndroidUtilities.runOnUIThread(new Runnable() {
-            @Override
-            public void run() {
-                updateStickerTabs();
-                reloadStickersAdapter();
-            }
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.stickersDidLoad);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.recentImagesDidLoad);
+        AndroidUtilities.runOnUIThread(() -> {
+            updateStickerTabs();
+            reloadStickersAdapter();
         });
     }
 
@@ -304,27 +294,27 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
     public void setVisibility(int visibility) {
         super.setVisibility(visibility);
         if (visibility != GONE) {
-            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.stickersDidLoaded);
-            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.recentDocumentsDidLoaded);
+            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.stickersDidLoad);
+            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.recentDocumentsDidLoad);
             updateStickerTabs();
             reloadStickersAdapter();
             checkDocuments();
-            DataQuery.getInstance(currentAccount).loadRecents(DataQuery.TYPE_IMAGE, false, true, false);
-            DataQuery.getInstance(currentAccount).loadRecents(DataQuery.TYPE_MASK, false, true, false);
-            DataQuery.getInstance(currentAccount).loadRecents(DataQuery.TYPE_FAVE, false, true, false);
+            MediaDataController.getInstance(currentAccount).loadRecents(MediaDataController.TYPE_IMAGE, false, true, false);
+            MediaDataController.getInstance(currentAccount).loadRecents(MediaDataController.TYPE_MASK, false, true, false);
+            MediaDataController.getInstance(currentAccount).loadRecents(MediaDataController.TYPE_FAVE, false, true, false);
         }
     }
 
     public void onDestroy() {
         if (stickersGridAdapter != null) {
-            NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.stickersDidLoaded);
-            NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recentDocumentsDidLoaded);
+            NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.stickersDidLoad);
+            NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recentDocumentsDidLoad);
         }
     }
 
     private void checkDocuments() {
         int previousCount = recentStickers[currentType].size();
-        recentStickers[currentType] = DataQuery.getInstance(currentAccount).getRecentStickers(currentType);
+        recentStickers[currentType] = MediaDataController.getInstance(currentAccount).getRecentStickers(currentType);
         if (stickersGridAdapter != null) {
             stickersGridAdapter.notifyDataSetChanged();
         }
@@ -333,16 +323,15 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.stickersDidLoaded) {
+        if (id == NotificationCenter.stickersDidLoad) {
             if ((Integer) args[0] == currentType) {
                 updateStickerTabs();
                 reloadStickersAdapter();
                 checkPanels();
             }
-        } else if (id == NotificationCenter.recentDocumentsDidLoaded) {
+        } else if (id == NotificationCenter.recentDocumentsDidLoad) {
             boolean isGif = (Boolean) args[0];
             if (!isGif && (Integer) args[1] == currentType) {
                 checkDocuments();
@@ -357,6 +346,7 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
         private SparseArray<TLRPC.TL_messages_stickerSet> rowStartPack = new SparseArray<>();
         private HashMap<TLRPC.TL_messages_stickerSet, Integer> packStartRow = new HashMap<>();
         private SparseArray<TLRPC.Document> cache = new SparseArray<>();
+        private SparseArray<TLRPC.TL_messages_stickerSet> positionsToSets = new SparseArray<>();
         private int totalItems;
 
         public StickersGridAdapter(Context context) {
@@ -429,7 +419,7 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
             switch (holder.getItemViewType()) {
                 case 0:
                     TLRPC.Document sticker = cache.get(position);
-                    ((StickerEmojiCell) holder.itemView).setSticker(sticker, false);
+                    ((StickerEmojiCell) holder.itemView).setSticker(sticker, positionsToSets.get(position), false);
                     break;
                 case 1:
                     if (position == totalItems) {
@@ -459,6 +449,7 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
             rowStartPack.clear();
             packStartRow.clear();
             cache.clear();
+            positionsToSets.clear();
             totalItems = 0;
             ArrayList<TLRPC.TL_messages_stickerSet> packs = stickerSets[currentType];
             for (int a = -1; a < packs.size(); a++) {
@@ -478,6 +469,7 @@ public class StickerMasksView extends FrameLayout implements NotificationCenter.
                 int count = (int) Math.ceil(documents.size() / (float) stickersPerRow);
                 for (int b = 0; b < documents.size(); b++) {
                     cache.put(b + totalItems, documents.get(b));
+                    positionsToSets.put(b + totalItems, pack);
                 }
                 totalItems += count * stickersPerRow;
                 for (int b = 0; b < count; b++) {

@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui;
@@ -30,8 +30,7 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
-import org.telegram.messenger.support.widget.LinearLayoutManager;
-import org.telegram.messenger.support.widget.RecyclerView;
+import org.telegram.messenger.UserObject;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.Theme;
@@ -41,6 +40,7 @@ import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.SharedDocumentCell;
+import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.EmptyTextProgressView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.NumberTextView;
@@ -56,11 +56,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.StringTokenizer;
 
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 public class DocumentSelectActivity extends BaseFragment {
 
     public interface DocumentSelectActivityDelegate {
-        void didSelectFiles(DocumentSelectActivity activity, ArrayList<String> files);
+        void didSelectFiles(DocumentSelectActivity activity, ArrayList<String> files, boolean notify, int scheduleDate);
         void startDocumentSelectActivity();
+        default void startMusicSelectActivity(BaseFragment parentFragment) {}
     }
 
     private RecyclerListView listView;
@@ -68,6 +72,7 @@ public class DocumentSelectActivity extends BaseFragment {
     private NumberTextView selectedMessagesCountTextView;
     private EmptyTextProgressView emptyView;
     private LinearLayoutManager layoutManager;
+    private ChatActivity parentFragment;
 
     private File currentDir;
     private ArrayList<ListItem> items = new ArrayList<>();
@@ -81,6 +86,7 @@ public class DocumentSelectActivity extends BaseFragment {
     private ArrayList<ListItem> recentItems = new ArrayList<>();
     private int maxSelectedFiles = -1;
     private boolean canSelectOnlyImageFiles;
+    private boolean allowMusic;
 
     private final static int done = 3;
 
@@ -91,7 +97,6 @@ public class DocumentSelectActivity extends BaseFragment {
         String ext = "";
         String thumb;
         File file;
-        long date;
     }
 
     private class HistoryEntry {
@@ -121,6 +126,11 @@ public class DocumentSelectActivity extends BaseFragment {
             }
         }
     };
+
+    public DocumentSelectActivity(boolean music) {
+        super();
+        allowMusic = music;
+    }
 
     @Override
     public boolean onFragmentCreate() {
@@ -181,9 +191,12 @@ public class DocumentSelectActivity extends BaseFragment {
                 } else if (id == done) {
                     if (delegate != null) {
                         ArrayList<String> files = new ArrayList<>(selectedFiles.keySet());
-                        delegate.didSelectFiles(DocumentSelectActivity.this, files);
-                        for (ListItem item : selectedFiles.values()) {
-                            item.date = System.currentTimeMillis();
+                        if (parentFragment != null && parentFragment.isInScheduleMode()) {
+                            AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), UserObject.isUserSelf(parentFragment.getCurrentUser()), (notify, scheduleDate) -> {
+                                delegate.didSelectFiles(DocumentSelectActivity.this, files, notify, scheduleDate);
+                            });
+                        } else {
+                            delegate.didSelectFiles(DocumentSelectActivity.this, files, true, 0);
                         }
                     }
                 }
@@ -287,6 +300,10 @@ public class DocumentSelectActivity extends BaseFragment {
                         delegate.startDocumentSelectActivity();
                     }
                     finishFragment(false);
+                } else if (item.icon == R.drawable.ic_storage_music) {
+                    if (delegate != null) {
+                        delegate.startMusicSelectActivity(this);
+                    }
                 } else {
                     HistoryEntry he = history.remove(history.size() - 1);
                     actionBar.setTitle(he.title);
@@ -353,7 +370,13 @@ public class DocumentSelectActivity extends BaseFragment {
                     if (delegate != null) {
                         ArrayList<String> files = new ArrayList<>();
                         files.add(file.getAbsolutePath());
-                        delegate.didSelectFiles(DocumentSelectActivity.this, files);
+                        if (parentFragment != null && parentFragment.isInScheduleMode()) {
+                            AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), UserObject.isUserSelf(parentFragment.getCurrentUser()), (notify, scheduleDate) -> {
+                                delegate.didSelectFiles(DocumentSelectActivity.this, files, notify, scheduleDate);
+                            });
+                        } else {
+                            delegate.didSelectFiles(DocumentSelectActivity.this, files, true, 0);
+                        }
                     }
                 }
             }
@@ -362,6 +385,10 @@ public class DocumentSelectActivity extends BaseFragment {
         listRoots();
 
         return fragmentView;
+    }
+
+    public void setChatActivity(ChatActivity chatActivity) {
+        parentFragment = chatActivity;
     }
 
     public void setMaxSelectedFiles(int value) {
@@ -374,7 +401,7 @@ public class DocumentSelectActivity extends BaseFragment {
 
     public void loadRecentFiles() {
         try {
-            File[] files = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).listFiles();
+            File[] files = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).listFiles(); //TODO android Q
             for (int a = 0; a < files.length; a++) {
                 File file = files[a];
                 if (file.isDirectory()) {
@@ -676,6 +703,15 @@ public class DocumentSelectActivity extends BaseFragment {
         fs.file = null;
         items.add(fs);
 
+        if (allowMusic) {
+            fs = new ListItem();
+            fs.title = LocaleController.getString("AttachMusic", R.string.AttachMusic);
+            fs.subtitle = LocaleController.getString("MusicInfo", R.string.MusicInfo);
+            fs.icon = R.drawable.ic_storage_music;
+            fs.file = null;
+            items.add(fs);
+        }
+
         AndroidUtilities.clearDrawableAnimation(listView);
         scrolling = true;
         listAdapter.notifyDataSetChanged();
@@ -741,7 +777,7 @@ public class DocumentSelectActivity extends BaseFragment {
             switch (viewType) {
                 case 0:
                     view = new GraySectionCell(mContext);
-                    ((GraySectionCell) view).setText(LocaleController.getString("Recent", R.string.Recent).toUpperCase());
+                    ((GraySectionCell) view).setText(LocaleController.getString("Recent", R.string.Recent));
                     break;
                 case 1:
                 default:

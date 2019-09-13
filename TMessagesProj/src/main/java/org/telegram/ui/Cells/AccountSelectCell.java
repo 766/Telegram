@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 
@@ -21,6 +21,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ContactsController;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
@@ -82,14 +83,8 @@ public class AccountSelectCell extends FrameLayout {
         TLRPC.User user = UserConfig.getInstance(accountNumber).getCurrentUser();
         avatarDrawable.setInfo(user);
         textView.setText(ContactsController.formatName(user.first_name, user.last_name));
-        TLRPC.FileLocation avatar;
-        if (user.photo != null && user.photo.photo_small != null && user.photo.photo_small.volume_id != 0 && user.photo.photo_small.local_id != 0) {
-            avatar = user.photo.photo_small;
-        } else {
-            avatar = null;
-        }
         imageView.getImageReceiver().setCurrentAccount(account);
-        imageView.setImage(avatar, "50_50", avatarDrawable);
+        imageView.setImage(ImageLocation.getForUser(user,false), "50_50", avatarDrawable, user);
         checkImageView.setVisibility(check && account == UserConfig.selectedAccount ? VISIBLE : INVISIBLE);
     }
 

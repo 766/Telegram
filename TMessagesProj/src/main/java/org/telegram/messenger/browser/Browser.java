@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.messenger.browser;
@@ -12,7 +12,6 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.graphics.BitmapFactory;
@@ -169,19 +168,20 @@ public class Browser {
         openUrl(context, Uri.parse(url), allowCustom, tryTelegraph);
     }
 
-    public static void openUrl(final Context context, final Uri uri, final boolean allowCustom, boolean tryTelegraph) {
+    public static void openUrl(final Context context, Uri uri, final boolean allowCustom, boolean tryTelegraph) {
         if (context == null || uri == null) {
             return;
         }
         final int currentAccount = UserConfig.selectedAccount;
-        boolean forceBrowser[] = new boolean[] {false};
+        boolean[] forceBrowser = new boolean[]{false};
         boolean internalUri = isInternalUri(uri, forceBrowser);
         if (tryTelegraph) {
             try {
                 String host = uri.getHost().toLowerCase();
                 if (host.equals("telegra.ph") || uri.toString().toLowerCase().contains("telegram.org/faq")) {
-                    final AlertDialog progressDialog[] = new AlertDialog[] {new AlertDialog(context, 1)};
+                    final AlertDialog[] progressDialog = new AlertDialog[]{new AlertDialog(context, 3)};
 
+                    Uri finalUri = uri;
                     TLRPC.TL_messages_getWebPagePreview req = new TLRPC.TL_messages_getWebPagePreview();
                     req.message = uri.toString();
                     final int reqId = ConnectionsManager.getInstance(UserConfig.selectedAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
@@ -196,12 +196,12 @@ public class Browser {
                         if (response instanceof TLRPC.TL_messageMediaWebPage) {
                             TLRPC.TL_messageMediaWebPage webPage = (TLRPC.TL_messageMediaWebPage) response;
                             if (webPage.webpage instanceof TLRPC.TL_webPage && webPage.webpage.cached_page != null) {
-                                NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.openArticle, webPage.webpage, uri.toString());
+                                NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.openArticle, webPage.webpage, finalUri.toString());
                                 ok = true;
                             }
                         }
                         if (!ok) {
-                            openUrl(context, uri, allowCustom, false);
+                            openUrl(context, finalUri, allowCustom, false);
                         }
                     }));
                     AndroidUtilities.runOnUIThread(() -> {
@@ -209,17 +209,7 @@ public class Browser {
                             return;
                         }
                         try {
-                            progressDialog[0].setMessage(LocaleController.getString("Loading", R.string.Loading));
-                            progressDialog[0].setCanceledOnTouchOutside(false);
-                            progressDialog[0].setCancelable(false);
-                            progressDialog[0].setButton(DialogInterface.BUTTON_NEGATIVE, LocaleController.getString("Cancel", R.string.Cancel), (dialog, which) -> {
-                                ConnectionsManager.getInstance(UserConfig.selectedAccount).cancelRequest(reqId, true);
-                                try {
-                                    dialog.dismiss();
-                                } catch (Exception e) {
-                                    FileLog.e(e);
-                                }
-                            });
+                            progressDialog[0].setOnCancelListener(dialog -> ConnectionsManager.getInstance(UserConfig.selectedAccount).cancelRequest(reqId, true));
                             progressDialog[0].show();
                         } catch (Exception ignore) {
 
@@ -233,8 +223,15 @@ public class Browser {
         }
         try {
             String scheme = uri.getScheme() != null ? uri.getScheme().toLowerCase() : "";
+            if ("http".equals(scheme) || "https".equals(scheme)) {
+                try {
+                    uri = uri.normalizeScheme();
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+            }
             if (allowCustom && SharedConfig.customTabs && !internalUri && !scheme.equals("tel")) {
-                String browserPackageNames[] = null;
+                String[] browserPackageNames = null;
                 try {
                     Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.google.com"));
                     List<ResolveInfo> list = context.getPackageManager().queryIntentActivities(browserIntent, 0);
@@ -290,7 +287,8 @@ public class Browser {
 
                     CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder(getSession());
                     builder.addMenuItem(LocaleController.getString("CopyLink", R.string.CopyLink), copy);
-                    builder.setToolbarColor(Theme.getColor(Theme.key_actionBarDefault));
+
+                    builder.setToolbarColor(Theme.getColor(Theme.key_actionBarBrowser));
                     builder.setShowTitle(true);
                     builder.setActionButton(BitmapFactory.decodeResource(context.getResources(), R.drawable.abc_ic_menu_share_mtrl_alpha), LocaleController.getString("ShareFile", R.string.ShareFile), PendingIntent.getBroadcast(ApplicationLoader.applicationContext, 0, share, 0), false);
                     CustomTabsIntent intent = builder.build();
@@ -316,11 +314,14 @@ public class Browser {
         }
     }
 
-    public static boolean isInternalUrl(String url, boolean forceBrowser[]) {
+    public static boolean isInternalUrl(String url, boolean[] forceBrowser) {
         return isInternalUri(Uri.parse(url), forceBrowser);
     }
 
     public static boolean isPassportUrl(String url) {
+        if (url == null) {
+            return false;
+        }
         try {
             url = url.toLowerCase();
             if (url.startsWith("tg:passport") || url.startsWith("tg://passport") || url.startsWith("tg:secureid") || url.contains("resolve") && url.contains("domain=telegrampassport")) {
@@ -332,7 +333,7 @@ public class Browser {
         return false;
     }
 
-    public static boolean isInternalUri(Uri uri, boolean forceBrowser[]) {
+    public static boolean isInternalUri(Uri uri, boolean[] forceBrowser) {
         String host = uri.getHost();
         host = host != null ? host.toLowerCase() : "";
         if ("tg".equals(uri.getScheme())) {
@@ -341,7 +342,7 @@ public class Browser {
             String path = uri.getPath();
             if (path != null && path.length() > 1) {
                 path = path.substring(1).toLowerCase();
-                if (path.startsWith("blog") || path.equals("iv") || path.startsWith("faq") || path.equals("apps")) {
+                if (path.startsWith("blog") || path.equals("iv") || path.startsWith("faq") || path.equals("apps") || path.startsWith("s/")) {
                     if (forceBrowser != null) {
                         forceBrowser[0] = true;
                     }
@@ -349,11 +350,11 @@ public class Browser {
                 }
                 return true;
             }
-        } else if ("telegram.me".equals(host) || "t.me".equals(host) || "telesco.pe".equals(host)) {
+        } else if ("telegram.me".equals(host) || "t.me".equals(host)) {
             String path = uri.getPath();
             if (path != null && path.length() > 1) {
                 path = path.substring(1).toLowerCase();
-                if (path.equals("iv")) {
+                if (path.equals("iv") || path.startsWith("s/")) {
                     if (forceBrowser != null) {
                         forceBrowser[0] = true;
                     }

@@ -17,8 +17,8 @@ package com.google.android.exoplayer2.ext.flac;
 
 import static com.google.android.exoplayer2.util.Util.getPcmEncoding;
 
-import android.support.annotation.IntDef;
-import android.support.annotation.Nullable;
+import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.extractor.BinarySearchSeeker;
@@ -37,6 +37,7 @@ import com.google.android.exoplayer2.util.FlacStreamInfo;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import java.io.IOException;
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
@@ -50,7 +51,11 @@ public final class FlacExtractor implements Extractor {
   /** Factory that returns one extractor which is a {@link FlacExtractor}. */
   public static final ExtractorsFactory FACTORY = () -> new Extractor[] {new FlacExtractor()};
 
-  /** Flags controlling the behavior of the extractor. */
+  /**
+   * Flags controlling the behavior of the extractor. Possible flag value is {@link
+   * #FLAG_DISABLE_ID3_METADATA}.
+   */
+  @Documented
   @Retention(RetentionPolicy.SOURCE)
   @IntDef(
       flag = true,

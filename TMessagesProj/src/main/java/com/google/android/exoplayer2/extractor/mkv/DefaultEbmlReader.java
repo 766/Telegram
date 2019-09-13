@@ -15,13 +15,14 @@
  */
 package com.google.android.exoplayer2.extractor.mkv;
 
-import android.support.annotation.IntDef;
+import androidx.annotation.IntDef;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ParserException;
 import com.google.android.exoplayer2.extractor.ExtractorInput;
 import com.google.android.exoplayer2.util.Assertions;
 import java.io.EOFException;
 import java.io.IOException;
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayDeque;
@@ -31,6 +32,7 @@ import java.util.ArrayDeque;
  */
 /* package */ final class DefaultEbmlReader implements EbmlReader {
 
+  @Documented
   @Retention(RetentionPolicy.SOURCE)
   @IntDef({ELEMENT_STATE_READ_ID, ELEMENT_STATE_READ_CONTENT_SIZE, ELEMENT_STATE_READ_CONTENT})
   private @interface ElementState {}

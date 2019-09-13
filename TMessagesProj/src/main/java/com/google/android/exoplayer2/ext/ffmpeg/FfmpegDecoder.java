@@ -15,7 +15,7 @@
  */
 package com.google.android.exoplayer2.ext.ffmpeg;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.decoder.DecoderInputBuffer;
@@ -36,6 +36,10 @@ import java.util.List;
   // Output buffer sizes when decoding PCM mu-law streams, which is the maximum FFmpeg outputs.
   private static final int OUTPUT_BUFFER_SIZE_16BIT = 65536;
   private static final int OUTPUT_BUFFER_SIZE_32BIT = OUTPUT_BUFFER_SIZE_16BIT * 2;
+
+  // Error codes matching ffmpeg_jni.cc.
+  private static final int DECODER_ERROR_INVALID_DATA = -1;
+  private static final int DECODER_ERROR_OTHER = -2;
 
   private final String codecName;
   private final @Nullable byte[] extraData;
@@ -103,8 +107,14 @@ import java.util.List;
     int inputSize = inputData.limit();
     ByteBuffer outputData = outputBuffer.init(inputBuffer.timeUs, outputBufferSize);
     int result = ffmpegDecode(nativeContext, inputData, inputSize, outputData, outputBufferSize);
-    if (result < 0) {
-      return new FfmpegDecoderException("Error decoding (see logcat). Code: " + result);
+    if (result == DECODER_ERROR_INVALID_DATA) {
+      // Treat invalid data errors as non-fatal to match the behavior of MediaCodec. No output will
+      // be produced for this buffer, so mark it as decode-only to ensure that the audio sink's
+      // position is reset when more audio is produced.
+      outputBuffer.setFlags(C.BUFFER_FLAG_DECODE_ONLY);
+      return null;
+    } else if (result == DECODER_ERROR_OTHER) {
+      return new FfmpegDecoderException("Error decoding (see logcat).");
     }
     if (!hasOutputFormat) {
       channelCount = ffmpegGetChannelCount(nativeContext);

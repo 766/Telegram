@@ -16,7 +16,7 @@
 package com.google.android.exoplayer2.upstream;
 
 import android.net.Uri;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.util.Base64;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ParserException;
@@ -59,7 +59,7 @@ public final class DataSchemeDataSource extends BaseDataSource {
       }
     } else {
       // TODO: Add support for other charsets.
-      data = URLDecoder.decode(dataString, C.ASCII_NAME).getBytes();
+      data = Util.getUtf8Bytes(URLDecoder.decode(dataString, C.ASCII_NAME));
     }
     transferStarted(dataSpec);
     return data.length;

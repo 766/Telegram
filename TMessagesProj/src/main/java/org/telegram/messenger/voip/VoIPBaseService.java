@@ -33,6 +33,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
@@ -46,7 +47,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.Vibrator;
-import android.provider.Settings;
 import android.telecom.CallAudioState;
 import android.telecom.Connection;
 import android.telecom.DisconnectCause;
@@ -59,11 +59,11 @@ import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.RemoteViews;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.FileLoader;
@@ -83,7 +83,6 @@ import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.voip.VoIPHelper;
-import org.telegram.ui.VoIPActivity;
 import org.telegram.ui.VoIPPermissionActivity;
 
 import java.lang.reflect.Field;
@@ -218,6 +217,8 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 	protected int callDiscardReason;
 	protected boolean bluetoothScoActive=false;
 	protected boolean needSwitchToBluetoothAfterScoActivates=false;
+	protected boolean didDeleteConnectionServiceContact=false;
+	protected Runnable connectingSoundRunnable;
 
 	public boolean hasEarpiece() {
 		if(USE_CONNECTION_SERVICE){
@@ -503,13 +504,13 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 		SharedPreferences prefs = MessagesController.getNotificationsSettings(currentAccount);
 		AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
 		boolean needRing=am.getRingerMode()!=AudioManager.RINGER_MODE_SILENT;
-		if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.LOLLIPOP){
+		/*if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.LOLLIPOP){
 			try{
 				int mode=Settings.Global.getInt(getContentResolver(), "zen_mode");
 				if(needRing)
 					needRing=mode==0;
 			}catch(Exception ignore){}
-		}
+		}*/
 		if(needRing){
 			if(!USE_CONNECTION_SERVICE){
 				am.requestAudioFocus(this, AudioManager.STREAM_RING, AudioManager.AUDIOFOCUS_GAIN);
@@ -565,6 +566,7 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 	protected abstract Class<? extends Activity> getUIActivityClass();
 	public abstract CallConnection getConnectionAndStartCall();
 	protected abstract void startRinging();
+	public abstract void startRingtoneAndVibration();
 
 	@Override
 	public void onDestroy() {
@@ -627,6 +629,8 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 			soundPool.release();
 
 		if(USE_CONNECTION_SERVICE){
+			if(!didDeleteConnectionServiceContact)
+				ContactsController.getInstance(currentAccount).deleteConnectionServiceContact();
 			if(systemCallConnection!=null && !playingSound){
 				systemCallConnection.destroy();
 			}
@@ -1028,16 +1032,21 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 				.setSmallIcon(R.drawable.notification)
 				.setSubText(subText)
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0));
+		Uri soundProviderUri=Uri.parse("content://"+BuildConfig.APPLICATION_ID+".call_sound_provider/start_ringing");
 		if (Build.VERSION.SDK_INT >= 26) {
 			SharedPreferences nprefs=MessagesController.getGlobalNotificationsSettings();
 			int chanIndex=nprefs.getInt("calls_notification_channel", 0);
 			NotificationManager nm=(NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-			NotificationChannel existingChannel=nm.getNotificationChannel("incoming_calls"+chanIndex);
+			NotificationChannel oldChannel=nm.getNotificationChannel("incoming_calls"+chanIndex);
+			if(oldChannel!=null)
+				nm.deleteNotificationChannel(oldChannel.getId());
+			NotificationChannel existingChannel=nm.getNotificationChannel("incoming_calls2"+chanIndex);
 			boolean needCreate=true;
 			if(existingChannel!=null){
-				if(existingChannel.getImportance()<NotificationManager.IMPORTANCE_HIGH || existingChannel.getSound()!=null || existingChannel.getVibrationPattern()!=null){
-					FileLog.d("User messed up the notification channel; deleting it and creating a proper one");
-					nm.deleteNotificationChannel("incoming_calls"+chanIndex);
+				if(existingChannel.getImportance()<NotificationManager.IMPORTANCE_HIGH || !soundProviderUri.equals(existingChannel.getSound()) || existingChannel.getVibrationPattern()!=null || existingChannel.shouldVibrate()){
+					if(BuildVars.LOGS_ENABLED)
+						FileLog.d("User messed up the notification channel; deleting it and creating a proper one");
+					nm.deleteNotificationChannel("incoming_calls2"+chanIndex);
 					chanIndex++;
 					nprefs.edit().putInt("calls_notification_channel", chanIndex).commit();
 				}else{
@@ -1045,13 +1054,18 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 				}
 			}
 			if(needCreate){
-				NotificationChannel chan=new NotificationChannel("incoming_calls"+chanIndex, LocaleController.getString("IncomingCalls", R.string.IncomingCalls), NotificationManager.IMPORTANCE_HIGH);
-				chan.setSound(null, null);
+				AudioAttributes attrs=new AudioAttributes.Builder()
+						.setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+						.build();
+				NotificationChannel chan=new NotificationChannel("incoming_calls2"+chanIndex, LocaleController.getString("IncomingCalls", R.string.IncomingCalls), NotificationManager.IMPORTANCE_HIGH);
+				chan.setSound(soundProviderUri, attrs);
 				chan.enableVibration(false);
 				chan.enableLights(false);
 				nm.createNotificationChannel(chan);
 			}
-			builder.setChannelId("incoming_calls"+chanIndex);
+			builder.setChannelId("incoming_calls2"+chanIndex);
+		}else if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.LOLLIPOP){
+			builder.setSound(soundProviderUri, AudioManager.STREAM_RING);
 		}
 		Intent endIntent = new Intent(this, VoIPActionsReceiver.class);
 		endIntent.setAction(getPackageName() + ".DECLINE_CALL");
@@ -1072,7 +1086,7 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 			((SpannableString)answerTitle).setSpan(new ForegroundColorSpan(0xFF00AA00), 0, answerTitle.length(), 0);
 		}
 		PendingIntent answerPendingIntent=PendingIntent.getBroadcast(this, 0, answerIntent, PendingIntent.FLAG_CANCEL_CURRENT);
-		builder.addAction(R.drawable.ic_call_white_24dp, answerTitle, answerPendingIntent);
+		builder.addAction(R.drawable.ic_call, answerTitle, answerPendingIntent);
 		builder.setPriority(Notification.PRIORITY_MAX);
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
 			builder.setShowWhen(false);
@@ -1082,6 +1096,12 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 			builder.setVibrate(new long[0]);
 			builder.setCategory(Notification.CATEGORY_CALL);
 			builder.setFullScreenIntent(PendingIntent.getActivity(this, 0, intent, 0), true);
+			if(userOrChat instanceof TLRPC.User){
+				TLRPC.User user=(TLRPC.User) userOrChat;
+				if(!TextUtils.isEmpty(user.phone)){
+					builder.addPerson("tel:"+user.phone);
+				}
+			}
 		}
 		/*Bitmap photoBitmap=null;
 		if (photo != null) {
@@ -1126,11 +1146,13 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 				}
 				customView.setTextViewText(R.id.title, subText);
 			}
+			Bitmap avatar=getRoundAvatarBitmap(userOrChat);
 			customView.setTextViewText(R.id.answer_text, LocaleController.getString("VoipAnswerCall", R.string.VoipAnswerCall));
 			customView.setTextViewText(R.id.decline_text, LocaleController.getString("VoipDeclineCall", R.string.VoipDeclineCall));
-			customView.setImageViewBitmap(R.id.photo, getRoundAvatarBitmap(userOrChat));
+			customView.setImageViewBitmap(R.id.photo, avatar);
 			customView.setOnClickPendingIntent(R.id.answer_btn, answerPendingIntent);
 			customView.setOnClickPendingIntent(R.id.decline_btn, endPendingIntent);
+			builder.setLargeIcon(avatar);
 
 			/*if(groupUsers==null || groupUsers.size()==0){
 				customView.setViewVisibility(R.id.group_photos, View.GONE);
@@ -1196,6 +1218,10 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 			return;
 		}
 		if (newState == STATE_ESTABLISHED) {
+			if(connectingSoundRunnable!=null){
+				AndroidUtilities.cancelRunOnUIThread(connectingSoundRunnable);
+				connectingSoundRunnable=null;
+			}
 			if (spPlayID != 0) {
 				soundPool.stop(spPlayID);
 				spPlayID = 0;
@@ -1254,6 +1280,11 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 			AndroidUtilities.cancelRunOnUIThread(timeoutRunnable);
 			timeoutRunnable=null;
 		}
+		endConnectionServiceCall(needPlayEndSound ? 700 : 0);
+		stopSelf();
+	}
+
+	protected void endConnectionServiceCall(long delay){
 		if(USE_CONNECTION_SERVICE){
 			Runnable r=new Runnable(){
 				@Override
@@ -1281,12 +1312,11 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 					}
 				}
 			};
-			if(needPlayEndSound)
-				AndroidUtilities.runOnUIThread(r, 700);
+			if(delay>0)
+				AndroidUtilities.runOnUIThread(r, delay);
 			else
 				r.run();
 		}
-		stopSelf();
 	}
 
 	public boolean isOutgoing(){
@@ -1376,7 +1406,7 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 		PhoneAccountHandle handle=new PhoneAccountHandle(new ComponentName(this, TelegramConnectionService.class), ""+self.id);
 		PhoneAccount account=new PhoneAccount.Builder(handle, ContactsController.formatName(self.first_name, self.last_name))
 				.setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
-				.setIcon(Icon.createWithResource(this, R.drawable.ic_launcher))
+				.setIcon(Icon.createWithResource(this, R.drawable.ic_launcher_dr))
 				.setHighlightColor(0xff2ca5e0)
 				.addSupportedUriScheme("sip")
 				.build();
@@ -1395,6 +1425,8 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 				|| "marlin".equals(Build.PRODUCT)		// Pixel XL
 				|| "walleye".equals(Build.PRODUCT)		// Pixel 2
 				|| "taimen".equals(Build.PRODUCT)		// Pixel 2 XL
+				|| "blueline".equals(Build.PRODUCT)		// Pixel 3
+				|| "crosshatch".equals(Build.PRODUCT)	// Pixel 3 XL
 				|| MessagesController.getGlobalMainSettings().getBoolean("dbg_force_connection_service", false)
 				;
 	}
@@ -1450,7 +1482,11 @@ public abstract class VoIPBaseService extends Service implements SensorEventList
 		public void onStateChanged(int state){
 			super.onStateChanged(state);
 			if(BuildVars.LOGS_ENABLED)
-				FileLog.d("ConnectionService onStateChanged "+state);
+				FileLog.d("ConnectionService onStateChanged "+stateToString(state));
+			if(state==Connection.STATE_ACTIVE){
+				ContactsController.getInstance(currentAccount).deleteConnectionServiceContact();
+				didDeleteConnectionServiceContact=true;
+			}
 		}
 
 		@Override

@@ -18,7 +18,7 @@ package com.google.android.exoplayer2.upstream;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.net.Uri;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import java.io.EOFException;
 import java.io.IOException;
@@ -45,20 +45,21 @@ public final class AssetDataSource extends BaseDataSource {
   private long bytesRemaining;
   private boolean opened;
 
-  /**
-   * @param context A context.
-   */
+  /** @param context A context. */
   public AssetDataSource(Context context) {
-    this(context, null);
+    super(/* isNetwork= */ false);
+    this.assetManager = context.getAssets();
   }
 
   /**
    * @param context A context.
    * @param listener An optional listener.
+   * @deprecated Use {@link #AssetDataSource(Context)} and {@link
+   *     #addTransferListener(TransferListener)}.
    */
+  @Deprecated
   public AssetDataSource(Context context, @Nullable TransferListener listener) {
-    super(/* isNetwork= */ false);
-    this.assetManager = context.getAssets();
+    this(context);
     if (listener != null) {
       addTransferListener(listener);
     }

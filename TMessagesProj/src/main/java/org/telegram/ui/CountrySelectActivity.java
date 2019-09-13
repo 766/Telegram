@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui;
@@ -20,8 +20,6 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
-import org.telegram.messenger.support.widget.LinearLayoutManager;
-import org.telegram.messenger.support.widget.RecyclerView;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -43,6 +41,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 public class CountrySelectActivity extends BaseFragment {
 
@@ -124,7 +125,7 @@ public class CountrySelectActivity extends BaseFragment {
                 }
             }
         });
-        item.getSearchField().setHint(LocaleController.getString("Search", R.string.Search));
+        item.setSearchFieldHint(LocaleController.getString("Search", R.string.Search));
 
         searching = false;
         searchWas = false;
@@ -300,7 +301,7 @@ public class CountrySelectActivity extends BaseFragment {
                 case 1:
                 default:
                     view = new DividerCell(mContext);
-                    view.setPadding(AndroidUtilities.dp(LocaleController.isRTL ? 24 : 72), 0, AndroidUtilities.dp(LocaleController.isRTL ? 72 : 24), 0);
+                    view.setPadding(AndroidUtilities.dp(LocaleController.isRTL ? 24 : 72), AndroidUtilities.dp(8), AndroidUtilities.dp(LocaleController.isRTL ? 72 : 24), AndroidUtilities.dp(8));
                     break;
             }
             return new RecyclerListView.Holder(view);

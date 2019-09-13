@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -18,8 +18,10 @@ import android.text.TextUtils;
 import android.text.style.URLSpan;
 import android.view.MotionEvent;
 import android.view.SoundEffectConstants;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
@@ -36,11 +38,20 @@ import org.telegram.ui.Components.AvatarDrawable;
 public class ChatActionCell extends BaseCell {
 
     public interface ChatActionCellDelegate {
-        void didClickedImage(ChatActionCell cell);
-        void didLongPressed(ChatActionCell cell);
-        void needOpenUserProfile(int uid);
-        void didPressedBotButton(MessageObject messageObject, TLRPC.KeyboardButton button);
-        void didPressedReplyMessage(ChatActionCell cell, int id);
+        default void didClickImage(ChatActionCell cell) {
+        }
+
+        default void didLongPress(ChatActionCell cell, float x, float y) {
+        }
+
+        default void needOpenUserProfile(int uid) {
+        }
+
+        default void didPressBotButton(MessageObject messageObject, TLRPC.KeyboardButton button) {
+        }
+
+        default void didPressReplyMessage(ChatActionCell cell, int id) {
+        }
     }
 
     private URLSpan pressedLink;
@@ -48,13 +59,18 @@ public class ChatActionCell extends BaseCell {
     private ImageReceiver imageReceiver;
     private AvatarDrawable avatarDrawable;
     private StaticLayout textLayout;
-    private int textWidth = 0;
-    private int textHeight = 0;
-    private int textX = 0;
-    private int textY = 0;
-    private int textXLeft = 0;
-    private int previousWidth = 0;
-    private boolean imagePressed = false;
+    private int textWidth;
+    private int textHeight;
+    private int textX;
+    private int textY;
+    private int textXLeft;
+    private int previousWidth;
+    private boolean imagePressed;
+
+    private float lastTouchX;
+    private float lastTouchY;
+
+    private boolean wasLayout;
 
     private boolean hasReplyMessage;
 
@@ -75,27 +91,30 @@ public class ChatActionCell extends BaseCell {
         this.delegate = delegate;
     }
 
-    public void setCustomDate(int date) {
+    public void setCustomDate(int date, boolean scheduled) {
         if (customDate == date) {
             return;
         }
-        CharSequence newText = LocaleController.formatDateChat(date);
+        CharSequence newText;
+        if (scheduled) {
+            newText = LocaleController.formatString("MessageScheduledOn", R.string.MessageScheduledOn, LocaleController.formatDateChat(date));
+        } else {
+            newText = LocaleController.formatDateChat(date);
+        }
         if (customText != null && TextUtils.equals(newText, customText)) {
             return;
         }
-        previousWidth = 0;
         customDate = date;
         customText = newText;
         if (getMeasuredWidth() != 0) {
             createLayout(customText, getMeasuredWidth());
             invalidate();
         }
-        AndroidUtilities.runOnUIThread(new Runnable() {
-            @Override
-            public void run() {
-                requestLayout();
-            }
-        });
+        if (!wasLayout) {
+            AndroidUtilities.runOnUIThread(this::requestLayout);
+        } else {
+            buildLayout();
+        }
     }
 
     public void setMessageObject(MessageObject messageObject) {
@@ -119,13 +138,13 @@ public class ChatActionCell extends BaseCell {
                     }
                 }
             }
-            avatarDrawable.setInfo(id, null, null, false);
+            avatarDrawable.setInfo(id, null, null);
             if (currentMessageObject.messageOwner.action instanceof TLRPC.TL_messageActionUserUpdatedPhoto) {
-                imageReceiver.setImage(currentMessageObject.messageOwner.action.newUserPhoto.photo_small, "50_50", avatarDrawable, null, 0);
+                imageReceiver.setImage(null, null, avatarDrawable, null, currentMessageObject, 0);
             } else {
                 TLRPC.PhotoSize photo = FileLoader.getClosestPhotoSizeWithSize(currentMessageObject.photoThumbs, AndroidUtilities.dp(64));
                 if (photo != null) {
-                    imageReceiver.setImage(photo.location, "50_50", avatarDrawable, null, 0);
+                    imageReceiver.setImage(ImageLocation.getForObject(photo, currentMessageObject.photoThumbsObject), "50_50", avatarDrawable, null, currentMessageObject, 0);
                 } else {
                     imageReceiver.setImageBitmap(avatarDrawable);
                 }
@@ -148,7 +167,7 @@ public class ChatActionCell extends BaseCell {
     @Override
     protected void onLongPress() {
         if (delegate != null) {
-            delegate.didLongPressed(this);
+            delegate.didLongPress(this, lastTouchX, lastTouchY);
         }
     }
 
@@ -158,12 +177,18 @@ public class ChatActionCell extends BaseCell {
     }
 
     @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        wasLayout = false;
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (currentMessageObject == null) {
             return super.onTouchEvent(event);
         }
-        float x = event.getX();
-        float y = event.getY();
+        float x = lastTouchX = event.getX();
+        float y = lastTouchY = event.getY();
 
         boolean result = false;
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
@@ -184,7 +209,7 @@ public class ChatActionCell extends BaseCell {
                 if (event.getAction() == MotionEvent.ACTION_UP) {
                     imagePressed = false;
                     if (delegate != null) {
-                        delegate.didClickedImage(this);
+                        delegate.didClickImage(this);
                         playSoundEffect(SoundEffectConstants.CLICK);
                     }
                 } else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
@@ -202,7 +227,7 @@ public class ChatActionCell extends BaseCell {
                     y -= textY;
                     x -= textXLeft;
 
-                    final int line = textLayout.getLineForVertical((int)y);
+                    final int line = textLayout.getLineForVertical((int) y);
                     final int off = textLayout.getOffsetForHorizontal(line, x);
                     final float left = textLayout.getLineLeft(line);
                     if (left <= x && left + textLayout.getLineWidth(line) >= x && currentMessageObject.messageText instanceof Spannable) {
@@ -218,7 +243,7 @@ public class ChatActionCell extends BaseCell {
                                     if (delegate != null) {
                                         String url = link[0].getURL();
                                         if (url.startsWith("game")) {
-                                            delegate.didPressedReplyMessage(this, currentMessageObject.messageOwner.reply_to_msg_id);
+                                            delegate.didPressReplyMessage(this, currentMessageObject.messageOwner.reply_to_msg_id);
                                             /*TLRPC.KeyboardButton gameButton = null;
                                             MessageObject messageObject = currentMessageObject.replyMessageObject;
                                             if (messageObject != null && messageObject.messageOwner.reply_markup != null) {
@@ -237,7 +262,7 @@ public class ChatActionCell extends BaseCell {
                                                 }
                                             }
                                             if (gameButton != null) {
-                                                delegate.didPressedBotButton(messageObject, gameButton);
+                                                delegate.didPressBotButton(messageObject, gameButton);
                                             }*/
                                         } else if (url.startsWith("http")) {
                                             Browser.openUrl(getContext(), url);
@@ -281,12 +306,12 @@ public class ChatActionCell extends BaseCell {
                     if (lineWidth > maxWidth) {
                         lineWidth = maxWidth;
                     }
-                    textHeight = (int)Math.max(textHeight, Math.ceil(textLayout.getLineBottom(a)));
+                    textHeight = (int) Math.max(textHeight, Math.ceil(textLayout.getLineBottom(a)));
                 } catch (Exception e) {
                     FileLog.e(e);
                     return;
                 }
-                textWidth = (int)Math.max(textWidth, Math.ceil(lineWidth));
+                textWidth = (int) Math.max(textWidth, Math.ceil(lineWidth));
             }
         } catch (Exception e) {
             FileLog.e(e);
@@ -303,30 +328,35 @@ public class ChatActionCell extends BaseCell {
             return;
         }
         int width = Math.max(AndroidUtilities.dp(30), MeasureSpec.getSize(widthMeasureSpec));
-        if (width != previousWidth) {
-            CharSequence text;
-            if (currentMessageObject != null) {
-                if (currentMessageObject.messageOwner != null && currentMessageObject.messageOwner.media != null && currentMessageObject.messageOwner.media.ttl_seconds != 0) {
-                    if (currentMessageObject.messageOwner.media.photo instanceof TLRPC.TL_photoEmpty) {
-                        text = LocaleController.getString("AttachPhotoExpired", R.string.AttachPhotoExpired);
-                    } else if (currentMessageObject.messageOwner.media.document instanceof TLRPC.TL_documentEmpty) {
-                        text = LocaleController.getString("AttachVideoExpired", R.string.AttachVideoExpired);
-                    } else {
-                        text = currentMessageObject.messageText;
-                    }
+        if (previousWidth != width) {
+            wasLayout = true;
+            previousWidth = width;
+            buildLayout();
+        }
+        setMeasuredDimension(width, textHeight + AndroidUtilities.dp(14 + (currentMessageObject != null && currentMessageObject.type == 11 ? 70 : 0)));
+    }
+
+    private void buildLayout() {
+        CharSequence text;
+        if (currentMessageObject != null) {
+            if (currentMessageObject.messageOwner != null && currentMessageObject.messageOwner.media != null && currentMessageObject.messageOwner.media.ttl_seconds != 0) {
+                if (currentMessageObject.messageOwner.media.photo instanceof TLRPC.TL_photoEmpty) {
+                    text = LocaleController.getString("AttachPhotoExpired", R.string.AttachPhotoExpired);
+                } else if (currentMessageObject.messageOwner.media.document instanceof TLRPC.TL_documentEmpty) {
+                    text = LocaleController.getString("AttachVideoExpired", R.string.AttachVideoExpired);
                 } else {
                     text = currentMessageObject.messageText;
                 }
             } else {
-                text = customText;
+                text = currentMessageObject.messageText;
             }
-            previousWidth = width;
-            createLayout(text, width);
-            if (currentMessageObject != null && currentMessageObject.type == 11) {
-                imageReceiver.setImageCoords((width - AndroidUtilities.dp(64)) / 2, textHeight + AndroidUtilities.dp(15), AndroidUtilities.dp(64), AndroidUtilities.dp(64));
-            }
+        } else {
+            text = customText;
         }
-        setMeasuredDimension(width, textHeight + AndroidUtilities.dp(14 + (currentMessageObject != null && currentMessageObject.type == 11 ? 70 : 0)));
+        createLayout(text, previousWidth);
+        if (currentMessageObject != null && currentMessageObject.type == 11) {
+            imageReceiver.setImageCoords((previousWidth - AndroidUtilities.dp(64)) / 2, textHeight + AndroidUtilities.dp(15), AndroidUtilities.dp(64), AndroidUtilities.dp(64));
+        }
     }
 
     public int getCustomDate() {
@@ -377,6 +407,7 @@ public class ChatActionCell extends BaseCell {
             final int cornerIn = AndroidUtilities.dp(8);
             int y = AndroidUtilities.dp(7);
             int previousLineBottom = 0;
+            int previousLineHeight = 0;
             int dx;
             int dx2;
             int dy;
@@ -488,7 +519,7 @@ public class ChatActionCell extends BaseCell {
                         y -= AndroidUtilities.dp(3);
                         height += AndroidUtilities.dp(3);
 
-                        dy = y + AndroidUtilities.dp(6.2f);
+                        dy = previousLineHeight;
 
                         dx = x - cornerIn;
                         if (drawInnerBottom != 2 && drawInnerBottom != 3) {
@@ -551,6 +582,8 @@ public class ChatActionCell extends BaseCell {
                 }
 
                 y += height;
+
+                previousLineHeight = y + additionalHeight;
             }
 
             canvas.save();
@@ -558,5 +591,15 @@ public class ChatActionCell extends BaseCell {
             textLayout.draw(canvas);
             canvas.restore();
         }
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+        if (TextUtils.isEmpty(customText) && currentMessageObject == null) {
+            return;
+        }
+        info.setText(!TextUtils.isEmpty(customText) ? customText : currentMessageObject.messageText);
+        info.setEnabled(true);
     }
 }

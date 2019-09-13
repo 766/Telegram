@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.messenger;
@@ -13,8 +13,8 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.IBinder;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationManagerCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.LaunchActivity;
@@ -36,20 +36,15 @@ public class LocationSharingService extends Service implements NotificationCente
     public void onCreate() {
         super.onCreate();
         handler = new Handler();
-        runnable = new Runnable() {
-            public void run() {
-                handler.postDelayed(runnable, 60000);
-                Utilities.stageQueue.postRunnable(new Runnable() {
-                    @Override
-                    public void run() {
-                        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-                            LocationController.getInstance(a).update();
-                        }
-                    }
-                });
-            }
+        runnable = () -> {
+            handler.postDelayed(runnable, 1000);
+            Utilities.stageQueue.postRunnable(() -> {
+                for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                    LocationController.getInstance(a).update();
+                }
+            });
         };
-        handler.postDelayed(runnable, 60000);
+        handler.postDelayed(runnable, 1000);
     }
 
     public IBinder onBind(Intent arg2) {
@@ -57,10 +52,12 @@ public class LocationSharingService extends Service implements NotificationCente
     }
 
     public void onDestroy() {
+        super.onDestroy();
         if (handler != null) {
             handler.removeCallbacks(runnable);
         }
         stopForeground(true);
+        NotificationManagerCompat.from(ApplicationLoader.applicationContext).cancel(6);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.liveLocationsChanged);
     }
 
@@ -68,15 +65,12 @@ public class LocationSharingService extends Service implements NotificationCente
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.liveLocationsChanged) {
             if (handler != null) {
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        ArrayList<LocationController.SharingLocationInfo> infos = getInfos();
-                        if (infos.isEmpty()) {
-                            stopSelf();
-                        } else {
-                            updateNotification(true);
-                        }
+                handler.post(() -> {
+                    ArrayList<LocationController.SharingLocationInfo> infos = getInfos();
+                    if (infos.isEmpty()) {
+                        stopSelf();
+                    } else {
+                        updateNotification(true);
                     }
                 });
             }
@@ -133,7 +127,7 @@ public class LocationSharingService extends Service implements NotificationCente
         if (builder == null) {
             Intent intent2 = new Intent(ApplicationLoader.applicationContext, LaunchActivity.class);
             intent2.setAction("org.tmessages.openlocations");
-            intent2.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            intent2.addCategory(Intent.CATEGORY_LAUNCHER);
             PendingIntent contentIntent = PendingIntent.getActivity(ApplicationLoader.applicationContext, 0, intent2, 0);
 
             builder = new NotificationCompat.Builder(ApplicationLoader.applicationContext);

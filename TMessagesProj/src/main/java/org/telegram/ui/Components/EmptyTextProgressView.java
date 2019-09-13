@@ -1,14 +1,17 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Components;
 
 import android.content.Context;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -68,6 +71,19 @@ public class EmptyTextProgressView extends FrameLayout {
         progressBar.setProgressColor(color);
     }
 
+    public void setTopImage(int resId) {
+        if (resId == 0) {
+            textView.setCompoundDrawablesWithIntrinsicBounds(null, null, null, null);
+        } else {
+            Drawable drawable = getContext().getResources().getDrawable(resId).mutate();
+            if (drawable != null) {
+                drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_emptyListPlaceholder), PorterDuff.Mode.MULTIPLY));
+            }
+            textView.setCompoundDrawablesWithIntrinsicBounds(null, drawable, null, null);
+            textView.setCompoundDrawablePadding(AndroidUtilities.dp(1));
+        }
+    }
+
     public void setTextSize(int size) {
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, size);
     }
@@ -92,9 +108,9 @@ public class EmptyTextProgressView extends FrameLayout {
             int x = (width - child.getMeasuredWidth()) / 2;
             int y;
             if (showAtCenter) {
-                y = (height / 2 - child.getMeasuredHeight()) / 2;
+                y = (height / 2 - child.getMeasuredHeight()) / 2 + getPaddingTop();
             } else {
-                y = (height - child.getMeasuredHeight()) / 2;
+                y = (height - child.getMeasuredHeight()) / 2 + getPaddingTop();
             }
             child.layout(x, y, x + child.getMeasuredWidth(), y + child.getMeasuredHeight());
         }

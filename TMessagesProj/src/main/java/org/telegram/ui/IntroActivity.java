@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui;
@@ -11,15 +11,11 @@ package org.telegram.ui;
 import android.animation.ObjectAnimator;
 import android.animation.StateListAnimator;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.database.DataSetObserver;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.BitmapDrawable;
@@ -30,15 +26,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Parcelable;
-import android.support.v4.view.PagerAdapter;
-import android.support.v4.view.ViewPager;
+import androidx.viewpager.widget.PagerAdapter;
+import androidx.viewpager.widget.ViewPager;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ScrollView;
@@ -55,9 +50,8 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.ConnectionsManager;
-import org.telegram.tgnet.RequestDelegate;
-import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.Components.BottomPagesView;
 import org.telegram.ui.Components.LayoutHelper;
 
 import javax.microedition.khronos.egl.EGL10;
@@ -69,60 +63,6 @@ import javax.microedition.khronos.opengles.GL;
 import javax.microedition.khronos.opengles.GL10;
 
 public class IntroActivity extends Activity implements NotificationCenter.NotificationCenterDelegate {
-
-    private class BottomPagesView extends View {
-
-        private Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private float progress;
-        private int scrollPosition;
-        private int currentPage;
-        private DecelerateInterpolator decelerateInterpolator = new DecelerateInterpolator();
-        private RectF rect = new RectF();
-        private float animatedProgress;
-
-        public BottomPagesView(Context context) {
-            super(context);
-        }
-
-        public void setPageOffset(int position, float offset) {
-            progress = offset;
-            scrollPosition = position;
-            invalidate();
-        }
-
-        public void setCurrentPage(int page) {
-            currentPage = page;
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            float d = AndroidUtilities.dp(5);
-            paint.setColor(0xffbbbbbb);
-            int x;
-            currentPage = viewPager.getCurrentItem();
-            for (int a = 0; a < 6; a++) {
-                if (a == currentPage) {
-                    continue;
-                }
-                x = a * AndroidUtilities.dp(11);
-                rect.set(x, 0, x + AndroidUtilities.dp(5), AndroidUtilities.dp(5));
-                canvas.drawRoundRect(rect, AndroidUtilities.dp(2.5f), AndroidUtilities.dp(2.5f), paint);
-            }
-            paint.setColor(0xff2ca5e0);
-            x = currentPage * AndroidUtilities.dp(11);
-            if (progress != 0) {
-                if (scrollPosition >= currentPage) {
-                    rect.set(x, 0, x + AndroidUtilities.dp(5) + AndroidUtilities.dp(11) * progress, AndroidUtilities.dp(5));
-                } else {
-                    rect.set(x - AndroidUtilities.dp(11) * (1.0f - progress), 0, x + AndroidUtilities.dp(5), AndroidUtilities.dp(5));
-                }
-            } else {
-                rect.set(x, 0, x + AndroidUtilities.dp(5), AndroidUtilities.dp(5));
-            }
-            canvas.drawRoundRect(rect, AndroidUtilities.dp(2.5f), AndroidUtilities.dp(2.5f), paint);
-        }
-    }
 
     private int currentAccount = UserConfig.selectedAccount;
 
@@ -188,12 +128,7 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
                 if (eglThread == null && surface != null) {
                     eglThread = new EGLThread(surface);
                     eglThread.setSurfaceTextureSize(width, height);
-                    eglThread.postRunnable(new Runnable() {
-                        @Override
-                        public void run() {
-                            eglThread.drawRunnable.run();
-                        }
-                    });
+                    eglThread.postRunnable(() -> eglThread.drawRunnable.run());
                 }
             }
 
@@ -273,31 +208,25 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
         }
         startMessagingButton.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(10), AndroidUtilities.dp(20), AndroidUtilities.dp(10));
         frameLayout.addView(startMessagingButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 10, 0, 10, 76));
-        startMessagingButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (startPressed) {
-                    return;
-                }
-                startPressed = true;
-                Intent intent2 = new Intent(IntroActivity.this, LaunchActivity.class);
-                intent2.putExtra("fromIntro", true);
-                startActivity(intent2);
-                destroyed = true;
-                finish();
+        startMessagingButton.setOnClickListener(view -> {
+            if (startPressed) {
+                return;
             }
+            startPressed = true;
+            Intent intent2 = new Intent(IntroActivity.this, LaunchActivity.class);
+            intent2.putExtra("fromIntro", true);
+            startActivity(intent2);
+            destroyed = true;
+            finish();
         });
         if (BuildVars.DEBUG_VERSION) {
-            startMessagingButton.setOnLongClickListener(new View.OnLongClickListener() {
-                @Override
-                public boolean onLongClick(View v) {
-                    ConnectionsManager.getInstance(currentAccount).switchBackend();
-                    return true;
-                }
+            startMessagingButton.setOnLongClickListener(v -> {
+                ConnectionsManager.getInstance(currentAccount).switchBackend();
+                return true;
             });
         }
 
-        bottomPages = new BottomPagesView(this);
+        bottomPages = new BottomPagesView(this, viewPager, 6);
         frameLayout.addView(bottomPages, LayoutHelper.createFrame(66, 5, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 350, 0, 0));
 
         textView = new TextView(this);
@@ -305,20 +234,17 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
         textView.setGravity(Gravity.CENTER);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         frameLayout.addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 20));
-        textView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (startPressed || localeInfo == null) {
-                    return;
-                }
-                LocaleController.getInstance().applyLanguage(localeInfo, true, false, currentAccount);
-                startPressed = true;
-                Intent intent2 = new Intent(IntroActivity.this, LaunchActivity.class);
-                intent2.putExtra("fromIntro", true);
-                startActivity(intent2);
-                destroyed = true;
-                finish();
+        textView.setOnClickListener(v -> {
+            if (startPressed || localeInfo == null) {
+                return;
             }
+            LocaleController.getInstance().applyLanguage(localeInfo, true, false, currentAccount);
+            startPressed = true;
+            Intent intent2 = new Intent(IntroActivity.this, LaunchActivity.class);
+            intent2.putExtra("fromIntro", true);
+            startActivity(intent2);
+            destroyed = true;
+            finish();
         });
 
         if (AndroidUtilities.isTablet()) {
@@ -386,7 +312,7 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
         LocaleController.LocaleInfo englishInfo = null;
         LocaleController.LocaleInfo systemInfo = null;
         LocaleController.LocaleInfo currentLocaleInfo = LocaleController.getInstance().getCurrentLocaleInfo();
-        String systemLang = LocaleController.getSystemLocaleStringIso639().toLowerCase();
+        final String systemLang = MessagesController.getInstance(currentAccount).suggestedLangCode;
         String arg = systemLang.contains("-") ? systemLang.split("-")[0] : systemLang;
         String alias = LocaleController.getLocaleAlias(arg);
         for (int a = 0; a < LocaleController.getInstance().languages.size(); a++) {
@@ -394,7 +320,7 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
             if (info.shortName.equals("en")) {
                 englishInfo = info;
             }
-            if (info.shortName.replace("_", "-").equals(systemLang) || info.shortName.equals(arg) || alias != null && info.shortName.equals(alias)) {
+            if (info.shortName.replace("_", "-").equals(systemLang) || info.shortName.equals(arg) || info.shortName.equals(alias)) {
                 systemInfo = info;
             }
             if (englishInfo != null && systemInfo != null) {
@@ -406,34 +332,28 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
         }
         TLRPC.TL_langpack_getStrings req = new TLRPC.TL_langpack_getStrings();
         if (systemInfo != currentLocaleInfo) {
-            req.lang_code = systemInfo.shortName.replace("_", "-");
+            req.lang_code = systemInfo.getLangCode();
             localeInfo = systemInfo;
         } else {
-            req.lang_code = englishInfo.shortName.replace("_", "-");
+            req.lang_code = englishInfo.getLangCode();
             localeInfo = englishInfo;
         }
         req.keys.add("ContinueOnThisLanguage");
-        ConnectionsManager.getInstance(currentAccount).sendRequest(req, new RequestDelegate() {
-            @Override
-            public void run(TLObject response, TLRPC.TL_error error) {
-                if (response != null) {
-                    TLRPC.Vector vector = (TLRPC.Vector) response;
-                    if (vector.objects.isEmpty()) {
-                        return;
-                    }
-                    final TLRPC.LangPackString string = (TLRPC.LangPackString) vector.objects.get(0);
-                    if (string instanceof TLRPC.TL_langPackString) {
-                        AndroidUtilities.runOnUIThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (!destroyed) {
-                                    textView.setText(string.value);
-                                    SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-                                    preferences.edit().putString("language_showed2", LocaleController.getSystemLocaleStringIso639().toLowerCase()).commit();
-                                }
-                            }
-                        });
-                    }
+        ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> {
+            if (response != null) {
+                TLRPC.Vector vector = (TLRPC.Vector) response;
+                if (vector.objects.isEmpty()) {
+                    return;
+                }
+                final TLRPC.LangPackString string = (TLRPC.LangPackString) vector.objects.get(0);
+                if (string instanceof TLRPC.TL_langPackString) {
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (!destroyed) {
+                            textView.setText(string.value);
+                            SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+                            preferences.edit().putString("language_showed2", systemLang.toLowerCase()).commit();
+                        }
+                    });
                 }
             }
         }, ConnectionsManager.RequestFlagWithoutLogin);
@@ -522,7 +442,7 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
         private EGLSurface eglSurface;
         private GL gl;
         private boolean initied;
-        private int textures[] = new int[23];
+        private int[] textures = new int[23];
 
         private int surfaceWidth;
         private int surfaceHeight;
@@ -692,12 +612,7 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
                 Intro.onDrawFrame();
                 egl10.eglSwapBuffers(eglDisplay, eglSurface);
 
-                postRunnable(new Runnable() {
-                    @Override
-                    public void run() {
-                        drawRunnable.run();
-                    }
-                }, 16);
+                postRunnable(() -> drawRunnable.run(), 16);
             }
         };
 
@@ -715,14 +630,11 @@ public class IntroActivity extends Activity implements NotificationCenter.Notifi
         }
 
         public void shutdown() {
-            postRunnable(new Runnable() {
-                @Override
-                public void run() {
-                    finish();
-                    Looper looper = Looper.myLooper();
-                    if (looper != null) {
-                        looper.quit();
-                    }
+            postRunnable(() -> {
+                finish();
+                Looper looper = Looper.myLooper();
+                if (looper != null) {
+                    looper.quit();
                 }
             });
         }

@@ -15,7 +15,7 @@
  */
 package com.google.android.exoplayer2.util;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.util.Pair;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ParserException;
@@ -203,6 +203,21 @@ public final class CodecSpecificDataUtil {
     specificConfig[0] = (byte) (((audioObjectType << 3) & 0xF8) | ((sampleRateIndex >> 1) & 0x07));
     specificConfig[1] = (byte) (((sampleRateIndex << 7) & 0x80) | ((channelConfig << 3) & 0x78));
     return specificConfig;
+  }
+
+  /**
+   * Builds an RFC 6381 AVC codec string using the provided parameters.
+   *
+   * @param profileIdc The encoding profile.
+   * @param constraintsFlagsAndReservedZero2Bits The constraint flags followed by the reserved zero
+   *     2 bits, all contained in the least significant byte of the integer.
+   * @param levelIdc The encoding level.
+   * @return An RFC 6381 AVC codec string built using the provided parameters.
+   */
+  public static String buildAvcCodecString(
+      int profileIdc, int constraintsFlagsAndReservedZero2Bits, int levelIdc) {
+    return String.format(
+        "avc1.%02X%02X%02X", profileIdc, constraintsFlagsAndReservedZero2Bits, levelIdc);
   }
 
   /**

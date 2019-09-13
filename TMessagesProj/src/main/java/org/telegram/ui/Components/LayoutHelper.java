@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x
+ * This is the source code of Telegram for Android v. 5.x.x
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Components;
@@ -49,6 +49,10 @@ public class LayoutHelper {
 
     public static FrameLayout.LayoutParams createFrame(int width, float height) {
         return new FrameLayout.LayoutParams(getSize(width), getSize(height));
+    }
+
+    public static FrameLayout.LayoutParams createFrame(float width, float height, int gravity) {
+        return new FrameLayout.LayoutParams(getSize(width), getSize(height), gravity);
     }
 
     public static RelativeLayout.LayoutParams createRelative(float width, float height, int leftMargin, int topMargin, int rightMargin, int bottomMargin, int alignParent, int alignRelative, int anchorRelative) {

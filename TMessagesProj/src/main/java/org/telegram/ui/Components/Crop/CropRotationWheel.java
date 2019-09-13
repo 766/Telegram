@@ -9,12 +9,12 @@ import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
@@ -37,7 +37,6 @@ public class CropRotationWheel extends FrameLayout {
     private Paint bluePaint;
 
     private ImageView aspectRatioButton;
-    private ImageView rotation90Button;
     private TextView degreesLabel;
 
     protected float rotation;
@@ -67,26 +66,23 @@ public class CropRotationWheel extends FrameLayout {
         aspectRatioButton.setImageResource(R.drawable.tool_cropfix);
         aspectRatioButton.setBackgroundDrawable(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR));
         aspectRatioButton.setScaleType(ImageView.ScaleType.CENTER);
-        aspectRatioButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (rotationListener != null)
-                    rotationListener.aspectRatioPressed();
-            }
+        aspectRatioButton.setOnClickListener(v -> {
+            if (rotationListener != null)
+                rotationListener.aspectRatioPressed();
         });
+        aspectRatioButton.setContentDescription(LocaleController.getString("AccDescrAspectRatio", R.string.AccDescrAspectRatio));
         addView(aspectRatioButton, LayoutHelper.createFrame(70, 64, Gravity.LEFT | Gravity.CENTER_VERTICAL));
 
-        rotation90Button = new ImageView(context);
+        ImageView rotation90Button = new ImageView(context);
         rotation90Button.setImageResource(R.drawable.tool_rotate);
         rotation90Button.setBackgroundDrawable(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR));
         rotation90Button.setScaleType(ImageView.ScaleType.CENTER);
-        rotation90Button.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (rotationListener != null)
-                    rotationListener.rotate90Pressed();
+        rotation90Button.setOnClickListener(v -> {
+            if (rotationListener != null) {
+                rotationListener.rotate90Pressed();
             }
         });
+        rotation90Button.setContentDescription(LocaleController.getString("AccDescrRotate", R.string.AccDescrRotate));
         addView(rotation90Button, LayoutHelper.createFrame(70, 64, Gravity.RIGHT | Gravity.CENTER_VERTICAL));
 
         degreesLabel = new TextView(context);
@@ -143,6 +139,7 @@ public class CropRotationWheel extends FrameLayout {
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             if (rotationListener != null)
                 rotationListener.onEnd(this.rotation);
+            AndroidUtilities.makeAccessibilityAnnouncement(String.format("%.1f°", this.rotation));
         } else if (action == MotionEvent.ACTION_MOVE) {
             float delta = prevX - x;
 

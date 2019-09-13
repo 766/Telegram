@@ -6,7 +6,12 @@ import android.net.ConnectivityManager;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
 import android.net.Network;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
+import android.text.TextUtils;
 
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
@@ -88,5 +93,40 @@ public class JNIUtilities{
 				return null;
 			}
 		}
+	}
+
+	// [name, country, mcc, mnc]
+	public static String[] getCarrierInfo(){
+		TelephonyManager tm=(TelephonyManager) ApplicationLoader.applicationContext.getSystemService(Context.TELEPHONY_SERVICE);
+		if(Build.VERSION.SDK_INT>=24){
+			tm=tm.createForSubscriptionId(SubscriptionManager.getDefaultDataSubscriptionId());
+		}
+		if(!TextUtils.isEmpty(tm.getNetworkOperatorName())){
+			String mnc="", mcc="";
+			String carrierID=tm.getNetworkOperator();
+			if(carrierID!=null && carrierID.length()>3){
+				mcc=carrierID.substring(0, 3);
+				mnc=carrierID.substring(3);
+			}
+			return new String[]{tm.getNetworkOperatorName(), tm.getNetworkCountryIso().toUpperCase(), mcc, mnc};
+		}
+		return null;
+	}
+
+	public static int[] getWifiInfo(){
+		try{
+			WifiManager wmgr=(WifiManager) ApplicationLoader.applicationContext.getSystemService(Context.WIFI_SERVICE);
+			WifiInfo info=wmgr.getConnectionInfo();
+			return new int[]{info.getRssi(), info.getLinkSpeed()};
+		}catch(Exception ignore){}
+		return null;
+	}
+
+	public static String getSupportedVideoCodecs() {
+		return "";
+	}
+
+	public static int getMaxVideoResolution() {
+		return 320;
 	}
 }

@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -15,12 +15,15 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.widget.CompoundButton;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessageObject;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BackupImageView;
@@ -36,7 +39,7 @@ public class ArchivedStickerSetCell extends FrameLayout {
     private Switch checkBox;
     private TLRPC.StickerSetCovered stickersSet;
     private Rect rect = new Rect();
-    private CompoundButton.OnCheckedChangeListener onCheckedChangeListener;
+    private Switch.OnCheckedChangeListener onCheckedChangeListener;
 
     public ArchivedStickerSetCell(Context context, boolean needCheckBox) {
         super(context);
@@ -62,14 +65,13 @@ public class ArchivedStickerSetCell extends FrameLayout {
 
         imageView = new BackupImageView(context);
         imageView.setAspectFit(true);
+        imageView.setLayerNum(1);
         addView(imageView, LayoutHelper.createFrame(48, 48, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 0 : 12, 8, LocaleController.isRTL ? 12 : 0, 0));
 
         if (needCheckBox) {
             checkBox = new Switch(context);
-            checkBox.setDuplicateParentStateEnabled(false);
-            checkBox.setFocusable(false);
-            checkBox.setFocusableInTouchMode(false);
-            addView(checkBox, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 14, 0, 14, 0));
+            checkBox.setColors(Theme.key_switchTrack, Theme.key_switchTrackChecked, Theme.key_windowBackgroundWhite, Theme.key_windowBackgroundWhite);
+            addView(checkBox, LayoutHelper.createFrame(37, 40, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 16, 0, 16, 0));
         }
     }
 
@@ -98,23 +100,52 @@ public class ArchivedStickerSetCell extends FrameLayout {
         textView.setText(stickersSet.set.title);
 
         valueTextView.setText(LocaleController.formatPluralString("Stickers", set.set.count));
-        if (set.cover != null && set.cover.thumb != null && set.cover.thumb.location != null) {
-            imageView.setImage(set.cover.thumb.location, null, "webp", null);
+
+        TLRPC.Document sticker;
+        if (set.cover != null) {
+            sticker = set.cover;
         } else if (!set.covers.isEmpty()) {
-            imageView.setImage(set.covers.get(0).thumb.location, null, "webp", null);
+            sticker = set.covers.get(0);
+        } else {
+            sticker = null;
+        }
+        if (sticker != null) {
+            TLObject object;
+            if (set.set.thumb instanceof TLRPC.TL_photoSize) {
+                object = set.set.thumb;
+            } else {
+                object = sticker;
+            }
+            ImageLocation imageLocation;
+
+            if (object instanceof TLRPC.Document) {
+                TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(sticker.thumbs, 90);
+                imageLocation = ImageLocation.getForDocument(thumb, sticker);
+            } else {
+                TLRPC.PhotoSize thumb = (TLRPC.PhotoSize) object;
+                imageLocation = ImageLocation.getForSticker(thumb, sticker);
+            }
+
+            if (object instanceof TLRPC.Document && MessageObject.isAnimatedStickerDocument(sticker)) {
+                imageView.setImage(ImageLocation.getForDocument(sticker), "50_50", imageLocation, null, 0, set);
+            } else if (imageLocation != null && imageLocation.lottieAnimation) {
+                imageView.setImage(imageLocation, "50_50", "tgs", null, set);
+            } else {
+                imageView.setImage(imageLocation, "50_50", "webp", null, set);
+            }
+        } else {
+            imageView.setImage(null, null, "webp", null, set);
         }
     }
 
-    public void setOnCheckClick(CompoundButton.OnCheckedChangeListener listener) {
+    public void setOnCheckClick(Switch.OnCheckedChangeListener listener) {
         checkBox.setOnCheckedChangeListener(onCheckedChangeListener = listener);
-        checkBox.setOnClickListener(v -> {
-
-        });
+        checkBox.setOnClickListener(v -> checkBox.setChecked(!checkBox.isChecked(), true));
     }
 
     public void setChecked(boolean checked) {
         checkBox.setOnCheckedChangeListener(null);
-        checkBox.setChecked(checked);
+        checkBox.setChecked(checked, true);
         checkBox.setOnCheckedChangeListener(onCheckedChangeListener);
     }
 

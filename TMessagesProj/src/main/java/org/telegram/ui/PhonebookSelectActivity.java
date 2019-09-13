@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui;
@@ -18,8 +18,6 @@ import android.widget.FrameLayout;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.LocaleController;
-import org.telegram.messenger.support.widget.LinearLayoutManager;
-import org.telegram.messenger.support.widget.RecyclerView;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -37,12 +35,16 @@ import org.telegram.ui.Components.EmptyTextProgressView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 public class PhonebookSelectActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private RecyclerListView listView;
     private EmptyTextProgressView emptyView;
     private PhonebookAdapter listViewAdapter;
     private PhonebookSearchAdapter searchListViewAdapter;
+    private ChatActivity parentFragment;
 
     private boolean searchWas;
     private boolean searching;
@@ -50,19 +52,19 @@ public class PhonebookSelectActivity extends BaseFragment implements Notificatio
 
     private final static int search_button = 0;
 
-    public PhonebookSelectActivity() {
+    public PhonebookSelectActivity(ChatActivity chatActivity) {
         super();
+        parentFragment = chatActivity;
     }
 
     public interface PhonebookSelectActivityDelegate {
-        void didSelectContact(TLRPC.User user);
+        void didSelectContact(TLRPC.User user, boolean notify, int scheduleDate);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public boolean onFragmentCreate() {
         super.onFragmentCreate();
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.contactsDidLoaded);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.contactsDidLoad);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.closeChats);
         return true;
     }
@@ -70,7 +72,7 @@ public class PhonebookSelectActivity extends BaseFragment implements Notificatio
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
-        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.contactsDidLoaded);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.contactsDidLoad);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.closeChats);
     }
 
@@ -125,7 +127,7 @@ public class PhonebookSelectActivity extends BaseFragment implements Notificatio
                 searchListViewAdapter.search(text);
             }
         });
-        item.getSearchField().setHint(LocaleController.getString("Search", R.string.Search));
+        item.setSearchFieldHint(LocaleController.getString("Search", R.string.Search));
 
         searchListViewAdapter = new PhonebookSearchAdapter(context) {
             @Override
@@ -181,51 +183,46 @@ public class PhonebookSelectActivity extends BaseFragment implements Notificatio
         listView.setAdapter(listViewAdapter);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        listView.setOnItemClickListener(new RecyclerListView.OnItemClickListener() {
-            @Override
-            public void onItemClick(View view, int position) {
-                Object object;
-                if (searching && searchWas) {
-                    object = searchListViewAdapter.getItem(position);
-                } else {
-                    int section = listViewAdapter.getSectionForPosition(position);
-                    int row = listViewAdapter.getPositionInSectionForPosition(position);
-                    if (row < 0 || section < 0) {
-                        return;
-                    }
-                    object = listViewAdapter.getItem(section, row);
-
+        listView.setOnItemClickListener((view, position) -> {
+            Object object;
+            if (searching && searchWas) {
+                object = searchListViewAdapter.getItem(position);
+            } else {
+                int section = listViewAdapter.getSectionForPosition(position);
+                int row = listViewAdapter.getPositionInSectionForPosition(position);
+                if (row < 0 || section < 0) {
+                    return;
                 }
-                if (object != null) {
-                    String name;
-                    ContactsController.Contact contact;
-                    if (object instanceof ContactsController.Contact) {
-                        contact = (ContactsController.Contact) object;
-                        if (contact.user != null) {
-                            name = ContactsController.formatName(contact.user.first_name, contact.user.last_name);
-                        } else {
-                            name = "";
-                        }
+                object = listViewAdapter.getItem(section, row);
+
+            }
+            if (object != null) {
+                String name;
+                ContactsController.Contact contact;
+                if (object instanceof ContactsController.Contact) {
+                    contact = (ContactsController.Contact) object;
+                    if (contact.user != null) {
+                        name = ContactsController.formatName(contact.user.first_name, contact.user.last_name);
                     } else {
-                        TLRPC.User user = (TLRPC.User) object;
-                        contact = new ContactsController.Contact();
-                        contact.first_name = user.first_name;
-                        contact.last_name = user.last_name;
-                        contact.phones.add(user.phone);
-                        contact.user = user;
-                        name = ContactsController.formatName(contact.first_name, contact.last_name);
+                        name = "";
                     }
-
-                    PhonebookShareActivity activity = new PhonebookShareActivity(contact, null, null, name);
-                    activity.setDelegate(new PhonebookSelectActivityDelegate() {
-                        @Override
-                        public void didSelectContact(TLRPC.User user) {
-                            removeSelfFromStack();
-                            delegate.didSelectContact(user);
-                        }
-                    });
-                    presentFragment(activity);
+                } else {
+                    TLRPC.User user = (TLRPC.User) object;
+                    contact = new ContactsController.Contact();
+                    contact.first_name = user.first_name;
+                    contact.last_name = user.last_name;
+                    contact.phones.add(user.phone);
+                    contact.user = user;
+                    name = ContactsController.formatName(contact.first_name, contact.last_name);
                 }
+
+                PhonebookShareActivity activity = new PhonebookShareActivity(contact, null, null, name);
+                activity.setChatActivity(parentFragment);
+                activity.setDelegate((user, notify, scheduleDate) -> {
+                    removeSelfFromStack();
+                    delegate.didSelectContact(user, notify, scheduleDate);
+                });
+                presentFragment(activity);
             }
         });
 
@@ -264,7 +261,7 @@ public class PhonebookSelectActivity extends BaseFragment implements Notificatio
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.contactsDidLoaded) {
+        if (id == NotificationCenter.contactsDidLoad) {
             if (listViewAdapter != null) {
                 listViewAdapter.notifyDataSetChanged();
             }
@@ -279,16 +276,13 @@ public class PhonebookSelectActivity extends BaseFragment implements Notificatio
 
     @Override
     public ThemeDescription[] getThemeDescriptions() {
-        ThemeDescription.ThemeDescriptionDelegate cellDelegate = new ThemeDescription.ThemeDescriptionDelegate() {
-            @Override
-            public void didSetColor() {
-                if (listView != null) {
-                    int count = listView.getChildCount();
-                    for (int a = 0; a < count; a++) {
-                        View child = listView.getChildAt(a);
-                        if (child instanceof UserCell) {
-                            ((UserCell) child).update(0);
-                        }
+        ThemeDescription.ThemeDescriptionDelegate cellDelegate = () -> {
+            if (listView != null) {
+                int count = listView.getChildCount();
+                for (int a = 0; a < count; a++) {
+                    View child = listView.getChildAt(a);
+                    if (child instanceof UserCell) {
+                        ((UserCell) child).update(0);
                     }
                 }
             }
@@ -320,7 +314,7 @@ public class PhonebookSelectActivity extends BaseFragment implements Notificatio
                 new ThemeDescription(listView, 0, new Class[]{UserCell.class}, new String[]{"nameTextView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText),
                 new ThemeDescription(listView, 0, new Class[]{UserCell.class}, new String[]{"statusColor"}, null, null, cellDelegate, Theme.key_windowBackgroundWhiteGrayText),
                 new ThemeDescription(listView, 0, new Class[]{UserCell.class}, new String[]{"statusOnlineColor"}, null, null, cellDelegate, Theme.key_windowBackgroundWhiteBlueText),
-                new ThemeDescription(listView, 0, new Class[]{UserCell.class}, null, new Drawable[]{Theme.avatar_photoDrawable, Theme.avatar_broadcastDrawable, Theme.avatar_savedDrawable}, null, Theme.key_avatar_text),
+                new ThemeDescription(listView, 0, new Class[]{UserCell.class}, null, new Drawable[]{Theme.avatar_savedDrawable}, null, Theme.key_avatar_text),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundRed),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundOrange),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundViolet),

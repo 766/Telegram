@@ -1,15 +1,18 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.messenger;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Rect;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -28,7 +31,7 @@ public class Utilities {
     public static volatile DispatchQueue stageQueue = new DispatchQueue("stageQueue");
     public static volatile DispatchQueue globalQueue = new DispatchQueue("globalQueue");
     public static volatile DispatchQueue searchQueue = new DispatchQueue("searchQueue");
-    public static volatile DispatchQueue phoneBookQueue = new DispatchQueue("photoBookQueue");
+    public static volatile DispatchQueue phoneBookQueue = new DispatchQueue("phoneBookQueue");
 
     final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
 
@@ -48,6 +51,7 @@ public class Utilities {
     public native static int pinBitmap(Bitmap bitmap);
     public native static void unpinBitmap(Bitmap bitmap);
     public native static void blurBitmap(Object bitmap, int radius, int unpin, int width, int height, int stride);
+    public native static int needInvert(Object bitmap, int unpin, int width, int height, int stride);
     public native static void calcCDT(ByteBuffer hsvBuffer, int width, int height, ByteBuffer buffer);
     public native static boolean loadWebpImage(Bitmap bitmap, ByteBuffer buffer, int len, BitmapFactory.Options options, boolean unpin);
     public native static int convertVideoFrame(ByteBuffer src, ByteBuffer dest, int destFormat, int width, int height, int padding, int swap);
@@ -60,7 +64,24 @@ public class Utilities {
     public native static long getDirSize(String path, int docType);
     public native static void clearDir(String path, int docType, long time);
     private native static int pbkdf2(byte[] password, byte[] salt, byte[] dst, int iterations);
-    public native static int argon2(int iterations);
+    public static native void stackBlurBitmap(Bitmap bitmap, int radius);
+
+    public static Bitmap blurWallpaper(Bitmap src) {
+        if (src == null) {
+            return null;
+        }
+        Bitmap b;
+        if (src.getHeight() > src.getWidth()) {
+            b = Bitmap.createBitmap(Math.round(450f * src.getWidth() / src.getHeight()), 450, Bitmap.Config.ARGB_8888);
+        } else {
+            b = Bitmap.createBitmap(450, Math.round(450f * src.getHeight() / src.getWidth()), Bitmap.Config.ARGB_8888);
+        }
+        Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        Rect rect = new Rect(0, 0, b.getWidth(), b.getHeight());
+        new Canvas(b).drawBitmap(src, null, rect, paint);
+        stackBlurBitmap(b, 12);
+        return b;
+    }
 
     public static void aesIgeEncryption(ByteBuffer buffer, byte[] key, byte[] iv, boolean encrypt, boolean changeIv, int offset, int length) {
         aesIgeEncryption(buffer, key, changeIv ? iv : iv.clone(), encrypt, offset, length);
@@ -70,19 +91,19 @@ public class Utilities {
         aesCbcEncryptionByteArray(buffer, key, iv.clone(), offset, length, n, encrypt);
     }
 
-    public static Integer parseInt(String value) {
+    public static Integer parseInt(CharSequence value) {
         if (value == null) {
             return 0;
         }
-        Integer val = 0;
+        int val = 0;
         try {
             Matcher matcher = pattern.matcher(value);
             if (matcher.find()) {
                 String num = matcher.group(0);
                 val = Integer.parseInt(num);
             }
-        } catch (Exception e) {
-            FileLog.e(e);
+        } catch (Exception ignore) {
+
         }
         return val;
     }
@@ -91,15 +112,15 @@ public class Utilities {
         if (value == null) {
             return 0L;
         }
-        Long val = 0L;
+        long val = 0L;
         try {
             Matcher matcher = pattern.matcher(value);
             if (matcher.find()) {
                 String num = matcher.group(0);
                 val = Long.parseLong(num);
             }
-        } catch (Exception e) {
-            FileLog.e(e);
+        } catch (Exception ignore) {
+
         }
         return val;
     }
@@ -334,6 +355,10 @@ public class Utilities {
     public static long bytesToLong(byte[] bytes) {
         return ((long) bytes[7] << 56) + (((long) bytes[6] & 0xFF) << 48) + (((long) bytes[5] & 0xFF) << 40) + (((long) bytes[4] & 0xFF) << 32)
                 + (((long) bytes[3] & 0xFF) << 24) + (((long) bytes[2] & 0xFF) << 16) + (((long) bytes[1] & 0xFF) << 8) + ((long) bytes[0] & 0xFF);
+    }
+
+    public static int bytesToInt(byte[] bytes) {
+        return (((int) bytes[3] & 0xFF) << 24) + (((int) bytes[2] & 0xFF) << 16) + (((int) bytes[1] & 0xFF) << 8) + ((int) bytes[0] & 0xFF);
     }
 
     public static String MD5(String md5) {

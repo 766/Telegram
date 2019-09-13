@@ -12,7 +12,6 @@
 #include <stdint.h>
 #include <vector>
 #include <map>
-#include <bits/unique_ptr.h>
 #include "Defines.h"
 
 class TL_future_salt;
@@ -35,6 +34,7 @@ public:
     int32_t getCurrentPort(uint32_t flags);
     void addAddressAndPort(std::string address, uint32_t port, uint32_t flags, std::string secret);
     void nextAddressOrPort(uint32_t flags);
+    bool isCustomPort(uint32_t flags);
     void storeCurrentAddressAndPortNum();
     void replaceAddresses(std::vector<TcpAddress> &newAddresses, uint32_t flags);
     void serializeToStream(NativeByteBuffer *stream);
@@ -44,7 +44,7 @@ public:
     void mergeServerSalts(std::vector<std::unique_ptr<TL_future_salt>> &salts);
     void addServerSalt(std::unique_ptr<TL_future_salt> &serverSalt);
     bool containsServerSalt(int64_t value);
-    void suspendConnections();
+    void suspendConnections(bool suspendPush);
     void getSessions(std::vector<int64_t> &sessions);
     void recreateSessions(HandshakeType type);
     void resetAddressAndPortNum();
@@ -53,12 +53,13 @@ public:
     bool isHandshaking(HandshakeType type);
     bool hasAuthKey(ConnectionType connectionTyoe, int32_t allowPendingKey);
     bool hasPermanentAuthKey();
+    int64_t getPermanentAuthKeyId();
     bool isExportingAuthorization();
     bool hasMediaAddress();
     void resetInitVersion();
 
     Connection *getDownloadConnection(uint8_t num, bool create);
-    Connection *getProxyConnection(uint8_t num, bool create);
+    Connection *getProxyConnection(uint8_t num, bool create, bool connect);
     Connection *getUploadConnection(uint8_t num, bool create);
     Connection *getGenericConnection(bool create, int32_t allowPendingKey);
     Connection *getGenericMediaConnection(bool create, int32_t allowPendingKey);
@@ -66,7 +67,7 @@ public:
     Connection *getTempConnection(bool create);
     Connection *getConnectionByType(uint32_t connectionType, bool create, int32_t allowPendingKey);
 
-    static inline void aesIgeEncryption(uint8_t *buffer, uint8_t *key, uint8_t *iv, bool encrypt, bool changeIv, uint32_t length);
+    static void aesIgeEncryption(uint8_t *buffer, uint8_t *key, uint8_t *iv, bool encrypt, bool changeIv, uint32_t length);
 
 private:
     void onHandshakeConnectionClosed(Connection *connection);
@@ -121,7 +122,7 @@ private:
 
     std::vector<std::unique_ptr<Handshake>> handshakes;
 
-    const uint32_t configVersion = 10;
+    const uint32_t configVersion = 11;
     const uint32_t paramsConfigVersion = 1;
 
     Connection *createProxyConnection(uint8_t num);

@@ -43,17 +43,6 @@ Datacenter::Datacenter(int32_t instance, uint32_t id) {
     }
 }
 
-inline char char2int(char input) {
-    if (input >= '0' && input <= '9') {
-        return input - '0';
-    } else if (input >= 'A' && input <= 'F') {
-        return (char) (input - 'A' + 10);
-    } else if (input >= 'a' && input <= 'f') {
-        return (char) (input - 'a' + 10);
-    }
-    return 0;
-}
-
 Datacenter::Datacenter(int32_t instance, NativeByteBuffer *data) {
     instanceNum = instance;
     for (uint32_t a = 0; a < UPLOAD_CONNECTIONS_COUNT; a++) {
@@ -108,8 +97,19 @@ Datacenter::Datacenter(int32_t instance, NativeByteBuffer *data) {
                 } else {
                     flags = 0;
                 }
-                if (currentVersion >= 9) {
+                if (currentVersion >= 11) {
                     secret = data->readString(nullptr);
+                } else if (currentVersion >= 9) {
+                    secret = data->readString(nullptr);
+                    if (!secret.empty()) {
+                        size_t size = secret.size() / 2;
+                        char *result = new char[size];
+                        for (int32_t i = 0; i < size; i++) {
+                            result[i] = (char) (char2int(secret[i * 2]) * 16 + char2int(secret[i * 2 + 1]));
+                        }
+                        secret = std::string(result, size);
+                        delete[] result;
+                    }
                 }
                 (*array).push_back(TcpAddress(address, port, flags, secret));
             }
@@ -423,6 +423,29 @@ void Datacenter::nextAddressOrPort(uint32_t flags) {
     }
 }
 
+bool Datacenter::isCustomPort(uint32_t flags) {
+    uint32_t currentPortNum;
+    if (flags == 0 && authKeyPerm == nullptr && !addressesIpv4Temp.empty()) {
+        flags = TcpAddressFlagTemp;
+    }
+    if ((flags & TcpAddressFlagTemp) != 0) {
+        currentPortNum = currentPortNumIpv4Temp;
+    } else if ((flags & TcpAddressFlagDownload) != 0) {
+        if ((flags & TcpAddressFlagIpv6) != 0) {
+            currentPortNum = currentPortNumIpv6Download;
+        } else {
+            currentPortNum = currentPortNumIpv4Download;
+        }
+    } else {
+        if ((flags & TcpAddressFlagIpv6) != 0) {
+            currentPortNum = currentPortNumIpv6;
+        } else {
+            currentPortNum = currentPortNumIpv4;
+        }
+    }
+    return defaultPorts[currentPortNum] != -1;
+}
+
 void Datacenter::storeCurrentAddressAndPortNum() {
     if (config == nullptr) {
         config = new Config(instanceNum, "dc" + to_string_int32(datacenterId) + "conf.dat");
@@ -618,7 +641,7 @@ int64_t Datacenter::getServerSalt() {
     }
 
     if (result == 0) {
-        DEBUG_D("dc%u valid salt not found", datacenterId);
+        if (LOGS_ENABLED) DEBUG_D("dc%u valid salt not found", datacenterId);
     }
 
     return result;
@@ -669,9 +692,12 @@ bool Datacenter::containsServerSalt(int64_t value) {
     return false;
 }
 
-void Datacenter::suspendConnections() {
+void Datacenter::suspendConnections(bool suspendPush) {
     if (genericConnection != nullptr) {
         genericConnection->suspendConnection();
+    }
+    if (suspendPush && pushConnection != nullptr) {
+        pushConnection->suspendConnection();
     }
     if (genericMediaConnection != nullptr) {
         genericMediaConnection->suspendConnection();
@@ -892,7 +918,7 @@ void Datacenter::onHandshakeConnectionConnected(Connection *connection) {
     }
 }
 
-inline void Datacenter::aesIgeEncryption(uint8_t *buffer, uint8_t *key, uint8_t *iv, bool encrypt, bool changeIv, uint32_t length) {
+void Datacenter::aesIgeEncryption(uint8_t *buffer, uint8_t *key, uint8_t *iv, bool encrypt, bool changeIv, uint32_t length) {
     uint8_t *ivBytes = iv;
     if (!changeIv) {
         ivBytes = new uint8_t[32];
@@ -1040,13 +1066,13 @@ NativeByteBuffer *Datacenter::createRequestsData(std::vector<std::unique_ptr<Net
         } else {
             messageBody = networkMessage->message->body.get();
         }
-        DEBUG_D("connection(%p, account%u, dc%u, type %d) send message (session: 0x%" PRIx64 ", seqno: %d, messageid: 0x%" PRIx64 "): %s(%p)", connection, instanceNum, datacenterId, connection->getConnectionType(), (uint64_t) connection->getSessionId(), networkMessage->message->seqno, (uint64_t) networkMessage->message->msg_id, typeid(*messageBody).name(), messageBody);
+        if (LOGS_ENABLED) DEBUG_D("connection(%p, account%u, dc%u, type %d) send message (session: 0x%" PRIx64 ", seqno: %d, messageid: 0x%" PRIx64 "): %s(%p)", connection, instanceNum, datacenterId, connection->getConnectionType(), (uint64_t) connection->getSessionId(), networkMessage->message->seqno, (uint64_t) networkMessage->message->msg_id, typeid(*messageBody).name(), messageBody);
 
         int64_t messageTime = (int64_t) (networkMessage->message->msg_id / 4294967296.0 * 1000);
         int64_t currentTime = ConnectionsManager::getInstance(instanceNum).getCurrentTimeMillis() + (int64_t) ConnectionsManager::getInstance(instanceNum).getTimeDifference() * 1000;
 
         if (!pfsInit && (messageTime < currentTime - 30000 || messageTime > currentTime + 25000)) {
-            DEBUG_D("wrap message in container");
+            if (LOGS_ENABLED) DEBUG_D("wrap message in container");
             TL_msg_container *messageContainer = new TL_msg_container();
             messageContainer->messages.push_back(std::move(networkMessage->message));
 
@@ -1059,7 +1085,7 @@ NativeByteBuffer *Datacenter::createRequestsData(std::vector<std::unique_ptr<Net
             messageSeqNo = networkMessage->message->seqno;
         }
     } else {
-        DEBUG_D("start write messages to container");
+        if (LOGS_ENABLED) DEBUG_D("start write messages to container");
         TL_msg_container *messageContainer = new TL_msg_container();
         size_t count = requests.size();
         for (uint32_t a = 0; a < count; a++) {
@@ -1069,7 +1095,7 @@ NativeByteBuffer *Datacenter::createRequestsData(std::vector<std::unique_ptr<Net
             } else {
                 messageBody = networkMessage->message->body.get();
             }
-            DEBUG_D("connection(%p, account%u, dc%u, type %d) send message (session: 0x%" PRIx64 ", seqno: %d, messageid: 0x%" PRIx64 "): %s(%p)", connection, instanceNum, datacenterId, connection->getConnectionType(), (uint64_t) connection->getSessionId(), networkMessage->message->seqno, (uint64_t) networkMessage->message->msg_id, typeid(*messageBody).name(), messageBody);
+            if (LOGS_ENABLED) DEBUG_D("connection(%p, account%u, dc%u, type %d) send message (session: 0x%" PRIx64 ", seqno: %d, messageid: 0x%" PRIx64 "): %s(%p)", connection, instanceNum, datacenterId, connection->getConnectionType(), (uint64_t) connection->getSessionId(), networkMessage->message->seqno, (uint64_t) networkMessage->message->msg_id, typeid(*messageBody).name(), messageBody);
             messageContainer->messages.push_back(std::unique_ptr<TL_message>(std::move(networkMessage->message)));
         }
         messageId = ConnectionsManager::getInstance(instanceNum).generateMessageId();
@@ -1202,6 +1228,10 @@ bool Datacenter::hasPermanentAuthKey() {
     return authKeyPerm != nullptr;
 }
 
+int64_t Datacenter::getPermanentAuthKeyId() {
+    return authKeyPermId;
+}
+
 bool Datacenter::hasAuthKey(ConnectionType connectionType, int32_t allowPendingKey) {
     return getAuthKey(connectionType, false, nullptr, allowPendingKey) != nullptr;
 }
@@ -1229,13 +1259,16 @@ Connection *Datacenter::createConnectionByType(uint32_t connectionType) {
     }
 }
 
-Connection *Datacenter::getProxyConnection(uint8_t num, bool create) {
+Connection *Datacenter::getProxyConnection(uint8_t num, bool create, bool connect) {
     ByteArray *authKey = getAuthKey(ConnectionTypeProxy, false, nullptr, 1);
     if (authKey == nullptr) {
         return nullptr;
     }
     if (create) {
-        createProxyConnection(num)->connect();
+        Connection *connection = createProxyConnection(num);
+        if (connect) {
+            connection->connect();
+        }
     }
     return proxyConnection[num];
 }
@@ -1323,7 +1356,7 @@ Connection *Datacenter::getConnectionByType(uint32_t connectionType, bool create
         case ConnectionTypeTemp:
             return getTempConnection(create);
         case ConnectionTypeProxy:
-            return getProxyConnection(connectionNum, create);
+            return getProxyConnection(connectionNum, create, create);
         default:
             return nullptr;
     }
@@ -1364,25 +1397,25 @@ void Datacenter::exportAuthorization() {
     exportingAuthorization = true;
     TL_auth_exportAuthorization *request = new TL_auth_exportAuthorization();
     request->dc_id = datacenterId;
-    DEBUG_D("dc%u begin export authorization", datacenterId);
+    if (LOGS_ENABLED) DEBUG_D("dc%u begin export authorization", datacenterId);
     ConnectionsManager::getInstance(instanceNum).sendRequest(request, [&](TLObject *response, TL_error *error, int32_t networkType) {
         if (error == nullptr) {
             TL_auth_exportedAuthorization *res = (TL_auth_exportedAuthorization *) response;
             TL_auth_importAuthorization *request2 = new TL_auth_importAuthorization();
             request2->bytes = std::move(res->bytes);
             request2->id = res->id;
-            DEBUG_D("dc%u begin import authorization", datacenterId);
+            if (LOGS_ENABLED) DEBUG_D("dc%u begin import authorization", datacenterId);
             ConnectionsManager::getInstance(instanceNum).sendRequest(request2, [&](TLObject *response2, TL_error *error2, int32_t networkType) {
                 if (error2 == nullptr) {
                     authorized = true;
                     ConnectionsManager::getInstance(instanceNum).onDatacenterExportAuthorizationComplete(this);
                 } else {
-                    DEBUG_D("dc%u failed import authorization", datacenterId);
+                    if (LOGS_ENABLED) DEBUG_D("dc%u failed import authorization", datacenterId);
                 }
                 exportingAuthorization = false;
             }, nullptr, RequestFlagEnableUnauthorized | RequestFlagWithoutLogin, datacenterId, ConnectionTypeGeneric, true);
         } else {
-            DEBUG_D("dc%u failed export authorization", datacenterId);
+            if (LOGS_ENABLED) DEBUG_D("dc%u failed export authorization", datacenterId);
             exportingAuthorization = false;
         }
     }, nullptr, 0, DEFAULT_DATACENTER_ID, ConnectionTypeGeneric, true);
@@ -1430,7 +1463,7 @@ TL_help_configSimple *Datacenter::decodeSimpleConfig(NativeByteBuffer *buffer) {
     RSA *rsaKey = PEM_read_bio_RSAPublicKey(keyBio, NULL, NULL, NULL);
     if (rsaKey == nullptr) {
         if (rsaKey == nullptr) {
-            DEBUG_E("Invalid rsa public key");
+            if (LOGS_ENABLED) DEBUG_E("Invalid rsa public key");
             return nullptr;
         }
     }
@@ -1474,10 +1507,10 @@ TL_help_configSimple *Datacenter::decodeSimpleConfig(NativeByteBuffer *buffer) {
                             }
                         }
                     } else {
-                        DEBUG_E("TL data length field invalid - %d", data_len);
+                        if (LOGS_ENABLED) DEBUG_E("TL data length field invalid - %d", data_len);
                     }
                 } else {
-                    DEBUG_E("RSA signature check FAILED (SHA256 mismatch)");
+                    if (LOGS_ENABLED) DEBUG_E("RSA signature check FAILED (SHA256 mismatch)");
                 }
             }
         }

@@ -16,7 +16,7 @@
 package com.google.android.exoplayer2.audio;
 
 import android.annotation.TargetApi;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 
 /**
@@ -102,7 +102,7 @@ public final class AudioAttributes {
   }
 
   @TargetApi(21)
-  /* package */ android.media.AudioAttributes getAudioAttributesV21() {
+  public android.media.AudioAttributes getAudioAttributesV21() {
     if (audioAttributesV21 == null) {
       audioAttributesV21 = new android.media.AudioAttributes.Builder()
           .setContentType(contentType)

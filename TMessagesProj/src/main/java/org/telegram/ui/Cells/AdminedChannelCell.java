@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -19,6 +19,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
@@ -73,10 +74,6 @@ public class AdminedChannelCell extends FrameLayout {
     }
 
     public void setChannel(TLRPC.Chat channel, boolean last) {
-        TLRPC.FileLocation photo = null;
-        if (channel.photo != null) {
-            photo = channel.photo.photo_small;
-        }
         final String url = MessagesController.getInstance(currentAccount).linkPrefix + "/";
         currentChannel = channel;
         avatarDrawable.setInfo(channel);
@@ -84,7 +81,7 @@ public class AdminedChannelCell extends FrameLayout {
         SpannableStringBuilder stringBuilder = new SpannableStringBuilder(url + channel.username);
         stringBuilder.setSpan(new URLSpanNoUnderline(""), url.length(), stringBuilder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         statusTextView.setText(stringBuilder);
-        avatarImageView.setImage(photo, "50_50", avatarDrawable);
+        avatarImageView.setImage(ImageLocation.getForChat(channel, false), "50_50", avatarDrawable, currentChannel);
         isLast = last;
     }
 

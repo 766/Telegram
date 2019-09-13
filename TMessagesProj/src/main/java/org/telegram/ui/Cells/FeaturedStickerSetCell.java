@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -30,10 +30,14 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.DataQuery;
+import org.telegram.messenger.MediaDataController;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BackupImageView;
@@ -80,7 +84,7 @@ public class FeaturedStickerSetCell extends FrameLayout {
         textView.setSingleLine(true);
         textView.setEllipsize(TextUtils.TruncateAt.END);
         textView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-        addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, LocaleController.isRTL ? 100 : 71, 10, LocaleController.isRTL ? 71 : 100, 0));
+        addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, LocaleController.isRTL ? 22 : 71, 10, LocaleController.isRTL ? 71 : 22, 0));
 
         valueTextView = new TextView(context);
         valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
@@ -94,6 +98,7 @@ public class FeaturedStickerSetCell extends FrameLayout {
 
         imageView = new BackupImageView(context);
         imageView.setAspectFit(true);
+        imageView.setLayerNum(1);
         addView(imageView, LayoutHelper.createFrame(48, 48, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 0 : 12, 8, LocaleController.isRTL ? 12 : 0, 0));
 
         addButton = new TextView(context) {
@@ -138,7 +143,7 @@ public class FeaturedStickerSetCell extends FrameLayout {
         addButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         addButton.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
         addButton.setBackgroundDrawable(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(4), Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_featuredStickers_addButtonPressed)));
-        addButton.setText(LocaleController.getString("Add", R.string.Add).toUpperCase());
+        addButton.setText(LocaleController.getString("Add", R.string.Add));
         addButton.setPadding(AndroidUtilities.dp(17), 0, AndroidUtilities.dp(17), 0);
         addView(addButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 28, Gravity.TOP | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), LocaleController.isRTL ? 14 : 0, 18, LocaleController.isRTL ? 0 : 14, 0));
 
@@ -151,6 +156,8 @@ public class FeaturedStickerSetCell extends FrameLayout {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(64) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
+
+        measureChildWithMargins(textView, widthMeasureSpec, addButton.getMeasuredWidth(), heightMeasureSpec, 0);
     }
 
     @Override
@@ -222,15 +229,46 @@ public class FeaturedStickerSetCell extends FrameLayout {
         }
 
         valueTextView.setText(LocaleController.formatPluralString("Stickers", set.set.count));
-        if (set.cover != null && set.cover.thumb != null && set.cover.thumb.location != null) {
-            imageView.setImage(set.cover.thumb.location, null, "webp", null);
-        } else if (!set.covers.isEmpty() && set.covers.get(0).thumb != null) {
-            imageView.setImage(set.covers.get(0).thumb.location, null, "webp", null);
+
+        TLRPC.Document sticker;
+        if (set.cover != null) {
+            sticker = set.cover;
+        } else if (!set.covers.isEmpty()) {
+            sticker = set.covers.get(0);
+        } else {
+            sticker = null;
+        }
+        if (sticker != null) {
+            TLObject object;
+            if (set.set.thumb instanceof TLRPC.TL_photoSize) {
+                object = set.set.thumb;
+            } else {
+                object = sticker;
+            }
+            ImageLocation imageLocation;
+
+            if (object instanceof TLRPC.Document) {
+                TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(sticker.thumbs, 90);
+                imageLocation = ImageLocation.getForDocument(thumb, sticker);
+            } else {
+                TLRPC.PhotoSize thumb = (TLRPC.PhotoSize) object;
+                imageLocation = ImageLocation.getForSticker(thumb, sticker);
+            }
+
+            if (object instanceof TLRPC.Document && MessageObject.isAnimatedStickerDocument(sticker)) {
+                imageView.setImage(ImageLocation.getForDocument(sticker), "50_50", imageLocation, null, 0, set);
+            } else if (imageLocation != null && imageLocation.lottieAnimation) {
+                imageView.setImage(imageLocation, "50_50", "tgs", null, set);
+            } else {
+                imageView.setImage(imageLocation, "50_50", "webp", null, set);
+            }
+        } else {
+            imageView.setImage(null, null, "webp", null, set);
         }
 
         if (sameSet) {
             boolean wasInstalled = isInstalled;
-            if (isInstalled = DataQuery.getInstance(currentAccount).isStickerPackInstalled(set.set.id)) {
+            if (isInstalled = MediaDataController.getInstance(currentAccount).isStickerPackInstalled(set.set.id)) {
                 if (!wasInstalled) {
                     checkImage.setVisibility(VISIBLE);
                     addButton.setClickable(false);
@@ -290,7 +328,7 @@ public class FeaturedStickerSetCell extends FrameLayout {
                 }
             }
         } else {
-            if (isInstalled = DataQuery.getInstance(currentAccount).isStickerPackInstalled(set.set.id)) {
+            if (isInstalled = MediaDataController.getInstance(currentAccount).isStickerPackInstalled(set.set.id)) {
                 addButton.setVisibility(INVISIBLE);
                 addButton.setClickable(false);
                 checkImage.setVisibility(VISIBLE);

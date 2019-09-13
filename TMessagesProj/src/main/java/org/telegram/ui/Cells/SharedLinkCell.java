@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -21,18 +21,19 @@ import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.R;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.tgnet.TLRPC;
-import org.telegram.ui.Components.CheckBox;
+import org.telegram.ui.Components.CheckBox2;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LetterDrawable;
 import org.telegram.ui.Components.LinkPath;
@@ -45,7 +46,9 @@ public class SharedLinkCell extends FrameLayout {
 
     public interface SharedLinkCellDelegate {
         void needOpenWebView(TLRPC.WebPage webPage);
+
         boolean canPerformActions();
+
         void onLinkLongPress(final String urlFinal);
     }
 
@@ -103,13 +106,13 @@ public class SharedLinkCell extends FrameLayout {
     }
 
     private boolean linkPreviewPressed;
-    private LinkPath urlPath = new LinkPath();
+    private LinkPath urlPath;
     private int pressedLink;
 
     private ImageReceiver linkImageView;
     private boolean drawLinkImageView;
     private LetterDrawable letterDrawable;
-    private CheckBox checkBox;
+    private CheckBox2 checkBox;
 
     private SharedLinkCellDelegate delegate;
 
@@ -119,13 +122,13 @@ public class SharedLinkCell extends FrameLayout {
     private int linkY;
     private ArrayList<StaticLayout> linkLayout = new ArrayList<>();
 
-    private int titleY = AndroidUtilities.dp(7);
+    private int titleY = AndroidUtilities.dp(10);
     private StaticLayout titleLayout;
 
-    private int descriptionY = AndroidUtilities.dp(27);
+    private int descriptionY = AndroidUtilities.dp(30);
     private StaticLayout descriptionLayout;
 
-    private int description2Y = AndroidUtilities.dp(27);
+    private int description2Y = AndroidUtilities.dp(30);
     private StaticLayout descriptionLayout2;
 
     private MessageObject message;
@@ -135,6 +138,10 @@ public class SharedLinkCell extends FrameLayout {
 
     public SharedLinkCell(Context context) {
         super(context);
+        setFocusable(true);
+
+        urlPath = new LinkPath();
+        urlPath.setUseRoundRect(true);
 
         titleTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         titleTextPaint.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
@@ -142,17 +149,20 @@ public class SharedLinkCell extends FrameLayout {
 
         descriptionTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
 
-        titleTextPaint.setTextSize(AndroidUtilities.dp(16));
-        descriptionTextPaint.setTextSize(AndroidUtilities.dp(16));
+        titleTextPaint.setTextSize(AndroidUtilities.dp(14));
+        descriptionTextPaint.setTextSize(AndroidUtilities.dp(14));
 
         setWillNotDraw(false);
         linkImageView = new ImageReceiver(this);
+        linkImageView.setRoundRadius(AndroidUtilities.dp(4));
         letterDrawable = new LetterDrawable();
 
-        checkBox = new CheckBox(context, R.drawable.round_check2);
+        checkBox = new CheckBox2(context, 21);
         checkBox.setVisibility(INVISIBLE);
-        checkBox.setColor(Theme.getColor(Theme.key_checkbox), Theme.getColor(Theme.key_checkboxCheck));
-        addView(checkBox, LayoutHelper.createFrame(22, 22, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 0 : 44, 44, LocaleController.isRTL ? 44 : 0, 0));
+        checkBox.setColor(null, Theme.key_windowBackgroundWhite, Theme.key_checkboxCheck);
+        checkBox.setDrawUnchecked(false);
+        checkBox.setDrawBackgroundAsArc(2);
+        addView(checkBox, LayoutHelper.createFrame(24, 24, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 0 : 44, 44, LocaleController.isRTL ? 44 : 0, 0));
     }
 
     @SuppressLint("DrawAllocation")
@@ -162,7 +172,6 @@ public class SharedLinkCell extends FrameLayout {
         descriptionLayout = null;
         titleLayout = null;
         descriptionLayout2 = null;
-        description2Y = descriptionY;
         linkLayout.clear();
         links.clear();
 
@@ -258,20 +267,23 @@ public class SharedLinkCell extends FrameLayout {
 
         if (title != null) {
             try {
-                int width = (int) Math.ceil(titleTextPaint.measureText(title));
-                CharSequence titleFinal = TextUtils.ellipsize(title.replace('\n', ' '), titleTextPaint, Math.min(width, maxWidth), TextUtils.TruncateAt.END);
-                titleLayout = new StaticLayout(titleFinal, titleTextPaint, maxWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
+                titleLayout = ChatMessageCell.generateStaticLayout(title, titleTextPaint, maxWidth, maxWidth, 0, 3);
+                if (titleLayout.getLineCount() > 0) {
+                    descriptionY = titleY + titleLayout.getLineBottom(titleLayout.getLineCount() - 1) + AndroidUtilities.dp(4);
+                }
             } catch (Exception e) {
                 FileLog.e(e);
             }
             letterDrawable.setTitle(title);
         }
+        description2Y = descriptionY;
+        int desctiptionLines = Math.max(1, 4 - (titleLayout != null ? titleLayout.getLineCount() : 0));
 
         if (description != null) {
             try {
-                descriptionLayout = ChatMessageCell.generateStaticLayout(description, descriptionTextPaint, maxWidth, maxWidth, 0, 3);
+                descriptionLayout = ChatMessageCell.generateStaticLayout(description, descriptionTextPaint, maxWidth, maxWidth, 0, desctiptionLines);
                 if (descriptionLayout.getLineCount() > 0) {
-                    description2Y = descriptionY + descriptionLayout.getLineBottom(descriptionLayout.getLineCount() - 1) + AndroidUtilities.dp(1);
+                    description2Y = descriptionY + descriptionLayout.getLineBottom(descriptionLayout.getLineCount() - 1) + AndroidUtilities.dp(5);
                 }
             } catch (Exception e) {
                 FileLog.e(e);
@@ -280,8 +292,7 @@ public class SharedLinkCell extends FrameLayout {
 
         if (description2 != null) {
             try {
-                descriptionLayout2 = ChatMessageCell.generateStaticLayout(description2, descriptionTextPaint, maxWidth, maxWidth, 0, 3);
-                int height = descriptionLayout2.getLineBottom(descriptionLayout2.getLineCount() - 1);
+                descriptionLayout2 = ChatMessageCell.generateStaticLayout(description2, descriptionTextPaint, maxWidth, maxWidth, 0, desctiptionLines);
                 if (descriptionLayout != null) {
                     description2Y += AndroidUtilities.dp(10);
                 }
@@ -299,7 +310,7 @@ public class SharedLinkCell extends FrameLayout {
                     StaticLayout layout = new StaticLayout(linkFinal, descriptionTextPaint, maxWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
                     linkY = description2Y;
                     if (descriptionLayout2 != null && descriptionLayout2.getLineCount() != 0) {
-                        linkY += descriptionLayout2.getLineBottom(descriptionLayout2.getLineCount() - 1) + AndroidUtilities.dp(1);
+                        linkY += descriptionLayout2.getLineBottom(descriptionLayout2.getLineCount() - 1) + AndroidUtilities.dp(5);
                     }
                     linkLayout.add(layout);
                 } catch (Exception e) {
@@ -310,7 +321,7 @@ public class SharedLinkCell extends FrameLayout {
 
         int maxPhotoWidth = AndroidUtilities.dp(52);
         int x = LocaleController.isRTL ? MeasureSpec.getSize(widthMeasureSpec) - AndroidUtilities.dp(10) - maxPhotoWidth : AndroidUtilities.dp(10);
-        letterDrawable.setBounds(x, AndroidUtilities.dp(10), x + maxPhotoWidth, AndroidUtilities.dp(62));
+        letterDrawable.setBounds(x, AndroidUtilities.dp(11), x + maxPhotoWidth, AndroidUtilities.dp(63));
 
         if (hasPhoto) {
             TLRPC.PhotoSize currentPhotoObject = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, maxPhotoWidth, true);
@@ -322,22 +333,23 @@ public class SharedLinkCell extends FrameLayout {
             if (currentPhotoObjectThumb != null) {
                 currentPhotoObjectThumb.size = -1;
             }
-            linkImageView.setImageCoords(x, AndroidUtilities.dp(10), maxPhotoWidth, maxPhotoWidth);
+            linkImageView.setImageCoords(x, AndroidUtilities.dp(11), maxPhotoWidth, maxPhotoWidth);
             String fileName = FileLoader.getAttachFileName(currentPhotoObject);
             String filter = String.format(Locale.US, "%d_%d", maxPhotoWidth, maxPhotoWidth);
-            linkImageView.setImage(currentPhotoObject.location, filter, currentPhotoObjectThumb != null ? currentPhotoObjectThumb.location : null, String.format(Locale.US, "%d_%d_b", maxPhotoWidth, maxPhotoWidth), 0, null, 0);
+            String thumbFilter = String.format(Locale.US, "%d_%d_b", maxPhotoWidth, maxPhotoWidth);
+            linkImageView.setImage(ImageLocation.getForObject(currentPhotoObject, message.photoThumbsObject), filter, ImageLocation.getForObject(currentPhotoObjectThumb, message.photoThumbsObject), thumbFilter, 0, null, message, 0);
             drawLinkImageView = true;
         }
 
         int height = 0;
         if (titleLayout != null && titleLayout.getLineCount() != 0) {
-            height += titleLayout.getLineBottom(titleLayout.getLineCount() - 1);
+            height += titleLayout.getLineBottom(titleLayout.getLineCount() - 1) + AndroidUtilities.dp(4);
         }
         if (descriptionLayout != null && descriptionLayout.getLineCount() != 0) {
-            height += descriptionLayout.getLineBottom(descriptionLayout.getLineCount() - 1);
+            height += descriptionLayout.getLineBottom(descriptionLayout.getLineCount() - 1) + AndroidUtilities.dp(5);
         }
         if (descriptionLayout2 != null && descriptionLayout2.getLineCount() != 0) {
-            height += descriptionLayout2.getLineBottom(descriptionLayout2.getLineCount() - 1);
+            height += descriptionLayout2.getLineBottom(descriptionLayout2.getLineCount() - 1) + AndroidUtilities.dp(5);
             if (descriptionLayout != null) {
                 height += AndroidUtilities.dp(10);
             }
@@ -348,11 +360,8 @@ public class SharedLinkCell extends FrameLayout {
                 height += layout.getLineBottom(layout.getLineCount() - 1);
             }
         }
-        if (hasPhoto) {
-            height = Math.max(AndroidUtilities.dp(48), height);
-        }
-        checkBox.measure(MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(22), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(22), MeasureSpec.EXACTLY));
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), Math.max(AndroidUtilities.dp(72), height + AndroidUtilities.dp(16)) + (needDivider ? 1 : 0));
+        checkBox.measure(MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(24), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(24), MeasureSpec.EXACTLY));
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), Math.max(AndroidUtilities.dp(76), height + AndroidUtilities.dp(17)) + (needDivider ? 1 : 0));
     }
 
     public void setLink(MessageObject messageObject, boolean divider) {
@@ -521,6 +530,27 @@ public class SharedLinkCell extends FrameLayout {
             } else {
                 canvas.drawLine(AndroidUtilities.dp(AndroidUtilities.leftBaseline), getMeasuredHeight() - 1, getMeasuredWidth(), getMeasuredHeight() - 1, Theme.dividerPaint);
             }
+        }
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+        StringBuilder sb = new StringBuilder();
+        if (titleLayout != null) {
+            sb.append(titleLayout.getText());
+        }
+        if (descriptionLayout != null) {
+            sb.append(", ");
+            sb.append(descriptionLayout.getText());
+        }
+        if (descriptionLayout2 != null) {
+            sb.append(", ");
+            sb.append(descriptionLayout2.getText());
+        }
+        if (checkBox.isChecked()) {
+            info.setChecked(true);
+            info.setCheckable(true);
         }
     }
 }

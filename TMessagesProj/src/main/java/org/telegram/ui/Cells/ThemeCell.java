@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -17,6 +17,7 @@ import android.graphics.PorterDuffColorFilter;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -39,6 +40,7 @@ public class ThemeCell extends FrameLayout {
     private ImageView optionsButton;
     private boolean needDivider;
     private Paint paint;
+    private Paint paintStroke;
     private Theme.ThemeInfo currentThemeInfo;
     private boolean isNightTheme;
     private static byte[] bytes = new byte[1024];
@@ -51,6 +53,9 @@ public class ThemeCell extends FrameLayout {
         isNightTheme = nightTheme;
 
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paintStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paintStroke.setStyle(Paint.Style.STROKE);
+        paintStroke.setStrokeWidth(AndroidUtilities.dp(2));
 
         textView = new TextView(context);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
@@ -60,14 +65,14 @@ public class ThemeCell extends FrameLayout {
         textView.setPadding(0, 0, 0, AndroidUtilities.dp(1));
         textView.setEllipsize(TextUtils.TruncateAt.END);
         textView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
-        addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 53 + 48 : 60, 0, LocaleController.isRTL ? 60 : 53 + 48, 0));
+        addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 53 + 48 + 4 : 60, 0, LocaleController.isRTL ? 60 : 53 + 48 + 4, 0));
 
         checkImage = new ImageView(context);
         checkImage.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_addedIcon), PorterDuff.Mode.MULTIPLY));
         checkImage.setImageResource(R.drawable.sticker_added);
 
         if (!isNightTheme) {
-            addView(checkImage, LayoutHelper.createFrame(19, 14, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 17 + 38, 0, 17 + 38, 0));
+            addView(checkImage, LayoutHelper.createFrame(19, 14, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 21 + 38, 0, 21 + 38, 0));
 
             optionsButton = new ImageView(context);
             optionsButton.setFocusable(false);
@@ -75,9 +80,10 @@ public class ThemeCell extends FrameLayout {
             optionsButton.setImageResource(R.drawable.ic_ab_other);
             optionsButton.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_stickers_menu), PorterDuff.Mode.MULTIPLY));
             optionsButton.setScaleType(ImageView.ScaleType.CENTER);
+            optionsButton.setContentDescription(LocaleController.getString("AccDescrMoreOptions", R.string.AccDescrMoreOptions));
             addView(optionsButton, LayoutHelper.createFrame(48, 48, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.TOP));
         } else {
-            addView(checkImage, LayoutHelper.createFrame(19, 14, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 17, 0, 17, 0));
+            addView(checkImage, LayoutHelper.createFrame(19, 14, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 21, 0, 21, 0));
         }
     }
 
@@ -90,7 +96,7 @@ public class ThemeCell extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(48) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
+        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(50) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
     }
 
     public void setOnOptionsClick(OnClickListener listener) {
@@ -120,16 +126,14 @@ public class ThemeCell extends FrameLayout {
         updateCurrentThemeCheck();
 
         boolean finished = false;
-        if (themeInfo.pathToFile != null || themeInfo.assetName != null) {
+        if (Theme.isThemeDefault(themeInfo) || themeInfo.assetName != null) {
+            paint.setColor(Theme.changeColorAccent(themeInfo, themeInfo.accentColor, themeInfo.previewBackgroundColor));
+            finished = true;
+        } else if (themeInfo.pathToFile != null) {
             FileInputStream stream = null;
             try {
                 int currentPosition = 0;
-                File file;
-                if (themeInfo.assetName != null) {
-                    file = Theme.getAssetFile(themeInfo.assetName);
-                } else {
-                    file = new File(themeInfo.pathToFile);
-                }
+                File file = new File(themeInfo.pathToFile);
                 stream = new FileInputStream(file);
                 int idx;
                 int read;
@@ -192,6 +196,10 @@ public class ThemeCell extends FrameLayout {
         if (!finished) {
             paint.setColor(Theme.getDefaultColor(Theme.key_actionBarDefault));
         }
+        paintStroke.setColor(themeInfo.accentColor);
+        if (themeInfo.accentColor != 0) {
+            paintStroke.setAlpha(180);
+        }
     }
 
     public void updateCurrentThemeCheck() {
@@ -210,12 +218,19 @@ public class ThemeCell extends FrameLayout {
     @Override
     protected void onDraw(Canvas canvas) {
         if (needDivider) {
-            canvas.drawLine(getPaddingLeft(), getHeight() - 1, getWidth() - getPaddingRight(), getHeight() - 1, Theme.dividerPaint);
+            canvas.drawLine(LocaleController.isRTL ? 0 : AndroidUtilities.dp(20), getMeasuredHeight() - 1, getMeasuredWidth() - (LocaleController.isRTL ? AndroidUtilities.dp(20) : 0), getMeasuredHeight() - 1, Theme.dividerPaint);
         }
-        int x = AndroidUtilities.dp(16 + 11);
+        int x = AndroidUtilities.dp(16 + 15);
         if (LocaleController.isRTL) {
             x = getWidth() - x;
         }
         canvas.drawCircle(x, AndroidUtilities.dp(13 + 11), AndroidUtilities.dp(11), paint);
+        canvas.drawCircle(x, AndroidUtilities.dp(13 + 11), AndroidUtilities.dp(10), paintStroke);
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+        setSelected(checkImage.getVisibility() == VISIBLE);
     }
 }

@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.ActionBar;
@@ -21,7 +21,7 @@ import org.telegram.messenger.AndroidUtilities;
 public class BackDrawable extends Drawable {
 
     private Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private boolean reverseAngle = false;
+    private boolean reverseAngle;
     private long lastFrameTime;
     private boolean animationInProgress;
     private float finalRotation;

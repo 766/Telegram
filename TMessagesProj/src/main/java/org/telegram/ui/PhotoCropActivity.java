@@ -3,7 +3,7 @@
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui;
@@ -405,7 +405,7 @@ public class PhotoCropActivity extends BaseFragment {
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
         if (bitmapKey != null) {
-            if (ImageLoader.getInstance().decrementUseCount(bitmapKey) && !ImageLoader.getInstance().isInCache(bitmapKey)) {
+            if (ImageLoader.getInstance().decrementUseCount(bitmapKey) && !ImageLoader.getInstance().isInMemCache(bitmapKey, false)) {
                 bitmapKey = null;
             }
         }
@@ -421,6 +421,7 @@ public class PhotoCropActivity extends BaseFragment {
         actionBar.setBackgroundColor(Theme.ACTION_BAR_MEDIA_PICKER_COLOR);
         actionBar.setItemsBackgroundColor(Theme.ACTION_BAR_PICKER_SELECTOR_COLOR, false);
         actionBar.setTitleColor(0xffffffff);
+        actionBar.setItemsColor(0xffffffff, false);
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
         actionBar.setTitle(LocaleController.getString("CropImage", R.string.CropImage));

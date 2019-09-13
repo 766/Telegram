@@ -16,7 +16,7 @@
 package com.google.android.exoplayer2.upstream;
 
 import android.net.Uri;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import java.io.EOFException;
 import java.io.IOException;
@@ -42,12 +42,16 @@ public final class FileDataSource extends BaseDataSource {
   private boolean opened;
 
   public FileDataSource() {
-    this(null);
+    super(/* isNetwork= */ false);
   }
 
-  /** @param listener An optional listener. */
+  /**
+   * @param listener An optional listener.
+   * @deprecated Use {@link #FileDataSource()} and {@link #addTransferListener(TransferListener)}
+   */
+  @Deprecated
   public FileDataSource(@Nullable TransferListener listener) {
-    super(/* isNetwork= */ false);
+    this();
     if (listener != null) {
       addTransferListener(listener);
     }

@@ -1,5 +1,5 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
@@ -17,8 +17,10 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
+import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildVars;
@@ -222,6 +224,20 @@ public class CallSwipeView extends View {
 			arrow.lineTo(size, 0);
 			arrow.lineTo(0, size);
 		}
+	}
+
+	@Override
+	public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info){
+		super.onInitializeAccessibilityNodeInfo(info);
+		info.addAction(AccessibilityNodeInfo.ACTION_CLICK);
+	}
+
+	@Override
+	public boolean performAccessibilityAction(int action, Bundle arguments){
+		if(action==AccessibilityNodeInfo.ACTION_CLICK && isEnabled()){
+			listener.onDragComplete();
+		}
+		return super.performAccessibilityAction(action, arguments);
 	}
 
 	public interface Listener {

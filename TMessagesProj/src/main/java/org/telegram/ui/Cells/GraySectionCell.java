@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Cells;
@@ -22,6 +22,7 @@ import org.telegram.ui.Components.LayoutHelper;
 public class GraySectionCell extends FrameLayout {
 
     private TextView textView;
+    private TextView righTextView;
 
     public GraySectionCell(Context context) {
         super(context);
@@ -29,11 +30,17 @@ public class GraySectionCell extends FrameLayout {
         setBackgroundColor(Theme.getColor(Theme.key_graySection));
 
         textView = new TextView(getContext());
-        textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         textView.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
         textView.setTextColor(Theme.getColor(Theme.key_graySectionText));
         textView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
         addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, 16, 0, 16, 0));
+
+        righTextView = new TextView(getContext());
+        righTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        righTextView.setTextColor(Theme.getColor(Theme.key_graySectionText));
+        righTextView.setGravity((LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL);
+        addView(righTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.TOP, 16, 0, 16, 0));
     }
 
     @Override
@@ -43,5 +50,13 @@ public class GraySectionCell extends FrameLayout {
 
     public void setText(String text) {
         textView.setText(text);
+        righTextView.setVisibility(GONE);
+    }
+
+    public void setText(String left, String right, OnClickListener onClickListener) {
+        textView.setText(left);
+        righTextView.setText(right);
+        righTextView.setOnClickListener(onClickListener);
+        righTextView.setVisibility(VISIBLE);
     }
 }

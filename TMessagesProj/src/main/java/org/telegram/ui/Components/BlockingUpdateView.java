@@ -12,7 +12,7 @@ import android.graphics.Canvas;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
-import android.support.v4.content.FileProvider;
+import androidx.core.content.FileProvider;
 import android.text.SpannableStringBuilder;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -34,6 +34,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
@@ -120,7 +121,7 @@ public class BlockingUpdateView extends FrameLayout implements NotificationCente
             }
             if (appUpdate.document instanceof TLRPC.TL_document) {
                 if (!openApkInstall((Activity) getContext(), appUpdate.document)) {
-                    FileLoader.getInstance(accountNum).loadFile(appUpdate.document, true, 1);
+                    FileLoader.getInstance(accountNum).loadFile(appUpdate.document, "update", 2, 1);
                     showProgress(true);
                 }
             } else if (appUpdate.url != null) {
@@ -168,21 +169,21 @@ public class BlockingUpdateView extends FrameLayout implements NotificationCente
     public void setVisibility(int visibility) {
         super.setVisibility(visibility);
         if (visibility == GONE) {
-            NotificationCenter.getInstance(accountNum).removeObserver(this, NotificationCenter.FileDidLoaded);
-            NotificationCenter.getInstance(accountNum).removeObserver(this, NotificationCenter.FileDidFailedLoad);
+            NotificationCenter.getInstance(accountNum).removeObserver(this, NotificationCenter.fileDidLoad);
+            NotificationCenter.getInstance(accountNum).removeObserver(this, NotificationCenter.fileDidFailToLoad);
             NotificationCenter.getInstance(accountNum).removeObserver(this, NotificationCenter.FileLoadProgressChanged);
         }
     }
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.FileDidLoaded) {
+        if (id == NotificationCenter.fileDidLoad) {
             String location = (String) args[0];
             if (fileName != null && fileName.equals(location)) {
                 showProgress(false);
                 openApkInstall((Activity) getContext(), appUpdate.document);
             }
-        } else if (id == NotificationCenter.FileDidFailedLoad) {
+        } else if (id == NotificationCenter.fileDidFailToLoad) {
             String location = (String) args[0];
             if (fileName != null && fileName.equals(location)) {
                 showProgress(false);
@@ -291,7 +292,7 @@ public class BlockingUpdateView extends FrameLayout implements NotificationCente
         progressAnimation.start();
     }
 
-    public void show(int account, TLRPC.TL_help_appUpdate update) {
+    public void show(int account, TLRPC.TL_help_appUpdate update, boolean check) {
         pressCount = 0;
         appUpdate = update;
         accountNum = account;
@@ -309,8 +310,31 @@ public class BlockingUpdateView extends FrameLayout implements NotificationCente
         } else {
             acceptTextView.setText(LocaleController.getString("Update", R.string.Update).toUpperCase());
         }
-        NotificationCenter.getInstance(accountNum).addObserver(this, NotificationCenter.FileDidLoaded);
-        NotificationCenter.getInstance(accountNum).addObserver(this, NotificationCenter.FileDidFailedLoad);
+        NotificationCenter.getInstance(accountNum).addObserver(this, NotificationCenter.fileDidLoad);
+        NotificationCenter.getInstance(accountNum).addObserver(this, NotificationCenter.fileDidFailToLoad);
         NotificationCenter.getInstance(accountNum).addObserver(this, NotificationCenter.FileLoadProgressChanged);
+        if (check) {
+            TLRPC.TL_help_getAppUpdate req = new TLRPC.TL_help_getAppUpdate();
+            try {
+                req.source = ApplicationLoader.applicationContext.getPackageManager().getInstallerPackageName(ApplicationLoader.applicationContext.getPackageName());
+            } catch (Exception ignore) {
+
+            }
+            if (req.source == null) {
+                req.source = "";
+            }
+            ConnectionsManager.getInstance(accountNum).sendRequest(req, (response, error) -> {
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (response instanceof TLRPC.TL_help_appUpdate) {
+                        final TLRPC.TL_help_appUpdate res = (TLRPC.TL_help_appUpdate) response;
+                        if (!res.can_not_skip) {
+                            setVisibility(GONE);
+                            UserConfig.getInstance(0).pendingAppUpdate = null;
+                            UserConfig.getInstance(0).saveConfig(false);
+                        }
+                    }
+                });
+            });
+        }
     }
 }

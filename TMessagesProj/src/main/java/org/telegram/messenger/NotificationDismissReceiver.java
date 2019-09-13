@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.messenger;
@@ -20,6 +20,12 @@ public class NotificationDismissReceiver extends BroadcastReceiver {
             return;
         }
         int currentAccount = intent.getIntExtra("currentAccount", UserConfig.selectedAccount);
-        MessagesController.getNotificationsSettings(currentAccount).edit().putInt("dismissDate", intent.getIntExtra("messageDate", 0)).commit();
+        long dialogId = intent.getLongExtra("dialogId", 0);
+        int date = intent.getIntExtra("messageDate", 0);
+        if (dialogId == 0) {
+            MessagesController.getNotificationsSettings(currentAccount).edit().putInt("dismissDate", date).commit();
+        } else {
+            MessagesController.getNotificationsSettings(currentAccount).edit().putInt("dismissDate" + dialogId, date).commit();
+        }
     }
 }

@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2017.
+ * Copyright Nikolai Kudashov, 2013-2018.
  */
 
 package org.telegram.ui.Adapters;
@@ -17,7 +17,6 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
-import org.telegram.messenger.support.widget.RecyclerView;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.DrawerActionCell;
 import org.telegram.ui.Cells.DividerCell;
@@ -29,6 +28,8 @@ import org.telegram.ui.Components.RecyclerListView;
 
 import java.util.ArrayList;
 import java.util.Collections;
+
+import androidx.recyclerview.widget.RecyclerView;
 
 public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
 
@@ -135,8 +136,8 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
     public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
         switch (holder.getItemViewType()) {
             case 0: {
-                ((DrawerProfileCell) holder.itemView).setUser(MessagesController.getInstance(UserConfig.selectedAccount).getUser(UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId()), accountsShowed);
-                holder.itemView.setBackgroundColor(Theme.getColor(Theme.key_avatar_backgroundActionBarBlue));
+                DrawerProfileCell profileCell = (DrawerProfileCell) holder.itemView;
+                profileCell.setUser(MessagesController.getInstance(UserConfig.selectedAccount).getUser(UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId()), accountsShowed);
                 break;
             }
             case 3: {
@@ -211,16 +212,30 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         if (!UserConfig.getInstance(UserConfig.selectedAccount).isClientActivated()) {
             return;
         }
-        items.add(new Item(2, LocaleController.getString("NewGroup", R.string.NewGroup), R.drawable.menu_newgroup));
-        items.add(new Item(3, LocaleController.getString("NewSecretChat", R.string.NewSecretChat), R.drawable.menu_secret));
-        items.add(new Item(4, LocaleController.getString("NewChannel", R.string.NewChannel), R.drawable.menu_broadcast));
-        items.add(null); // divider
-        items.add(new Item(6, LocaleController.getString("Contacts", R.string.Contacts), R.drawable.menu_contacts));
-        items.add(new Item(11, LocaleController.getString("SavedMessages", R.string.SavedMessages), R.drawable.menu_saved));
-        items.add(new Item(10, LocaleController.getString("Calls", R.string.Calls), R.drawable.menu_calls));
-        items.add(new Item(7, LocaleController.getString("InviteFriends", R.string.InviteFriends), R.drawable.menu_invite));
-        items.add(new Item(8, LocaleController.getString("Settings", R.string.Settings), R.drawable.menu_settings));
-        items.add(new Item(9, LocaleController.getString("TelegramFAQ", R.string.TelegramFAQ), R.drawable.menu_help));
+        int eventType = Theme.getEventType();
+        if (eventType == 0) {
+            items.add(new Item(2, LocaleController.getString("NewGroup", R.string.NewGroup), R.drawable.menu_groups_ny));
+            items.add(new Item(3, LocaleController.getString("NewSecretChat", R.string.NewSecretChat), R.drawable.menu_secret_ny));
+            items.add(new Item(4, LocaleController.getString("NewChannel", R.string.NewChannel), R.drawable.menu_channel_ny));
+            items.add(null); // divider
+            items.add(new Item(6, LocaleController.getString("Contacts", R.string.Contacts), R.drawable.menu_contacts_ny));
+            items.add(new Item(11, LocaleController.getString("SavedMessages", R.string.SavedMessages), R.drawable.menu_bookmarks_ny));
+            items.add(new Item(10, LocaleController.getString("Calls", R.string.Calls), R.drawable.menu_calls_ny));
+            items.add(new Item(7, LocaleController.getString("InviteFriends", R.string.InviteFriends), R.drawable.menu_invite_ny));
+            items.add(new Item(8, LocaleController.getString("Settings", R.string.Settings), R.drawable.menu_settings_ny));
+            items.add(new Item(9, LocaleController.getString("TelegramFAQ", R.string.TelegramFAQ), R.drawable.menu_help_ny));
+        } else {
+            items.add(new Item(2, LocaleController.getString("NewGroup", R.string.NewGroup), R.drawable.menu_groups));
+            items.add(new Item(3, LocaleController.getString("NewSecretChat", R.string.NewSecretChat), R.drawable.menu_secret));
+            items.add(new Item(4, LocaleController.getString("NewChannel", R.string.NewChannel), R.drawable.menu_broadcast));
+            items.add(null); // divider
+            items.add(new Item(6, LocaleController.getString("Contacts", R.string.Contacts), R.drawable.menu_contacts));
+            items.add(new Item(11, LocaleController.getString("SavedMessages", R.string.SavedMessages), R.drawable.menu_saved));
+            items.add(new Item(10, LocaleController.getString("Calls", R.string.Calls), R.drawable.menu_calls));
+            items.add(new Item(7, LocaleController.getString("InviteFriends", R.string.InviteFriends), R.drawable.menu_invite));
+            items.add(new Item(8, LocaleController.getString("Settings", R.string.Settings), R.drawable.menu_settings));
+            items.add(new Item(9, LocaleController.getString("TelegramFAQ", R.string.TelegramFAQ), R.drawable.menu_help));
+        }
     }
 
     public int getId(int position) {

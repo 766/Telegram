@@ -10,11 +10,13 @@ package org.telegram.messenger.voip;
 
 import android.content.SharedPreferences;
 import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.NoiseSuppressor;
 import android.os.Build;
 import android.os.SystemClock;
 
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
+import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.MessagesController;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.Components.voip.VoIPHelper;
@@ -49,6 +51,7 @@ public class VoIPController{
 	public static final int DATA_SAVING_NEVER=0;
 	public static final int DATA_SAVING_MOBILE=1;
 	public static final int DATA_SAVING_ALWAYS=2;
+	public static final int DATA_SAVING_ROAMING=3;
 
 	public static final int ERROR_CONNECTION_SERVICE=-5;
 	public static final int ERROR_INSECURE_UPGRADE=-4;
@@ -67,7 +70,7 @@ public class VoIPController{
 	protected ConnectionStateListener listener;
 
 	public VoIPController(){
-		nativeInst=nativeInit();
+		nativeInst=nativeInit(new File(ApplicationLoader.applicationContext.getFilesDir(), "voip_persistent_state.json").getAbsolutePath());
 	}
 
 	public void start(){
@@ -183,7 +186,7 @@ public class VoIPController{
 		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN){
 			try{
 				sysAecAvailable=AcousticEchoCanceler.isAvailable();
-				sysNsAvailable=AcousticEchoCanceler.isAvailable();
+				sysNsAvailable=NoiseSuppressor.isAvailable();
 			}catch(Throwable x){
 
 			}
@@ -193,7 +196,8 @@ public class VoIPController{
 		nativeSetConfig(nativeInst, recvTimeout, initTimeout, dataSavingOption,
 				!(sysAecAvailable && VoIPServerConfig.getBoolean("use_system_aec", true)),
 				!(sysNsAvailable && VoIPServerConfig.getBoolean("use_system_ns", true)),
-				true, BuildConfig.DEBUG ? getLogFilePath("voip"+callID) : getLogFilePath(callID), BuildConfig.DEBUG && dump ? getLogFilePath("voipStats") : null);
+				true, BuildVars.DEBUG_VERSION ? getLogFilePath("voip"+callID) : getLogFilePath(callID), BuildVars.DEBUG_VERSION && dump ? getLogFilePath("voipStats") : null,
+				BuildVars.DEBUG_VERSION);
 	}
 
 	public void debugCtl(int request, int param){
@@ -232,7 +236,7 @@ public class VoIPController{
 
 	private String getLogFilePath(long callID){
 		File dir=VoIPHelper.getLogsDir();
-		if(!BuildConfig.DEBUG){
+		if(!BuildVars.DEBUG_VERSION){
 			File[] _logs=dir.listFiles();
 			ArrayList<File> logs=new ArrayList<>();
 			logs.addAll(Arrays.asList(_logs));
@@ -290,7 +294,12 @@ public class VoIPController{
 		nativeSetEchoCancellationStrength(nativeInst, strength);
 	}
 
-	private native long nativeInit();
+	public boolean needRate(){
+		ensureNativeInstance();
+		return nativeNeedRate(nativeInst);
+	}
+
+	private native long nativeInit(String persistentStateFile);
 	private native void nativeStart(long inst);
 	private native void nativeConnect(long inst);
 	private static native void nativeSetNativeBufferSize(int size);
@@ -300,7 +309,7 @@ public class VoIPController{
 	private native void nativeSetMicMute(long inst, boolean mute);
 	private native void nativeDebugCtl(long inst, int request, int param);
 	private native void nativeGetStats(long inst, Stats stats);
-	private native void nativeSetConfig(long inst, double recvTimeout, double initTimeout, int dataSavingOption, boolean enableAEC, boolean enableNS, boolean enableAGC, String logFilePath, String statsDumpPath);
+	private native void nativeSetConfig(long inst, double recvTimeout, double initTimeout, int dataSavingOption, boolean enableAEC, boolean enableNS, boolean enableAGC, String logFilePath, String statsDumpPath, boolean logPacketStats);
 	private native void nativeSetEncryptionKey(long inst, byte[] key, boolean isOutgoing);
 	private native void nativeSetProxy(long inst, String address, int port, String username, String password);
 	private native long nativeGetPreferredRelayID(long inst);
@@ -313,6 +322,11 @@ public class VoIPController{
 	private native int nativeGetPeerCapabilities(long inst);
 	private native void nativeSendGroupCallKey(long inst, byte[] key);
 	private native void nativeRequestCallUpgrade(long inst);
+	private static native boolean nativeNeedRate(long inst);
+	public static native void nativeSetVideoSource(long arg1, long arg2);
+	public static native void nativeSetVideoRenderer(long arg1, long arg2);
+
+	public static native int getConnectionMaxLayer();
 
 	public interface ConnectionStateListener{
 		void onConnectionStateChanged(int newState);

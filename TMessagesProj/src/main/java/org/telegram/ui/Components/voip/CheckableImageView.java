@@ -1,5 +1,5 @@
 /*
- * This is the source code of Telegram for Android v. 3.x.x.
+ * This is the source code of Telegram for Android v. 5.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
@@ -10,6 +10,7 @@ package org.telegram.ui.Components.voip;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Checkable;
 import android.widget.ImageView;
 
@@ -55,5 +56,12 @@ public class CheckableImageView extends ImageView implements Checkable {
             mChecked = checked;
             refreshDrawableState();
         }
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info){
+        super.onInitializeAccessibilityNodeInfo(info);
+        info.setCheckable(true);
+        info.setChecked(isChecked());
     }
 }

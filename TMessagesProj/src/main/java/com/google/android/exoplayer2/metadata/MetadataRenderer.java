@@ -19,7 +19,7 @@ import android.os.Handler;
 import android.os.Handler.Callback;
 import android.os.Looper;
 import android.os.Message;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.BaseRenderer;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -129,9 +129,12 @@ public final class MetadataRenderer extends BaseRenderer implements Callback {
           buffer.subsampleOffsetUs = formatHolder.format.subsampleOffsetUs;
           buffer.flip();
           int index = (pendingMetadataIndex + pendingMetadataCount) % MAX_PENDING_METADATA_COUNT;
-          pendingMetadata[index] = decoder.decode(buffer);
-          pendingMetadataTimestamps[index] = buffer.timeUs;
-          pendingMetadataCount++;
+          Metadata metadata = decoder.decode(buffer);
+          if (metadata != null) {
+            pendingMetadata[index] = metadata;
+            pendingMetadataTimestamps[index] = buffer.timeUs;
+            pendingMetadataCount++;
+          }
         }
       }
     }

@@ -1,4 +1,5 @@
-LOCAL_PATH := $(call my-dir)
+MY_LOCAL_PATH := $(call my-dir)
+LOCAL_PATH := $(MY_LOCAL_PATH)
 
 LOCAL_MODULE    := avutil 
 
@@ -64,6 +65,22 @@ include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
+LOCAL_MODULE    := swscale
+
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+    LOCAL_SRC_FILES := ./ffmpeg/armv7-a/libswscale.a
+else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
+    LOCAL_SRC_FILES := ./ffmpeg/arm64/libswscale.a
+else ifeq ($(TARGET_ARCH_ABI),x86)
+    LOCAL_SRC_FILES := ./ffmpeg/i686/libswscale.a
+else ifeq ($(TARGET_ARCH_ABI),x86_64)
+    LOCAL_SRC_FILES := ./ffmpeg/x86_64/libswscale.a
+endif
+
+include $(PREBUILT_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+
 LOCAL_MODULE    := crypto
 
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
@@ -78,145 +95,14 @@ endif
 
 include $(PREBUILT_STATIC_LIBRARY)
 
-include $(CLEAR_VARS)
-
-LOCAL_MODULE := voip
-LOCAL_CPPFLAGS := -Wall -std=c++11 -DANDROID -finline-functions -ffast-math -Os -fno-strict-aliasing -O3 -frtti -D__STDC_LIMIT_MACROS
-LOCAL_CFLAGS := -O3 -DUSE_KISS_FFT -fexceptions -DWEBRTC_APM_DEBUG_DUMP=0 -DWEBRTC_POSIX -D__STDC_LIMIT_MACROS -DFIXED_POINT
-
-MY_DIR := libtgvoip
-
-LOCAL_C_INCLUDES := jni/opus/include jni/boringssl/include/ jni/libtgvoip/webrtc_dsp/
-
-LOCAL_SRC_FILES := \
-./libtgvoip/logging.cpp \
-./libtgvoip/VoIPController.cpp \
-./libtgvoip/VoIPGroupController.cpp \
-./libtgvoip/Buffers.cpp \
-./libtgvoip/BlockingQueue.cpp \
-./libtgvoip/audio/AudioInput.cpp \
-./libtgvoip/os/android/AudioInputOpenSLES.cpp \
-./libtgvoip/MediaStreamItf.cpp \
-./libtgvoip/audio/AudioOutput.cpp \
-./libtgvoip/OpusEncoder.cpp \
-./libtgvoip/os/android/AudioOutputOpenSLES.cpp \
-./libtgvoip/JitterBuffer.cpp \
-./libtgvoip/OpusDecoder.cpp \
-./libtgvoip/os/android/OpenSLEngineWrapper.cpp \
-./libtgvoip/os/android/AudioInputAndroid.cpp \
-./libtgvoip/os/android/AudioOutputAndroid.cpp \
-./libtgvoip/EchoCanceller.cpp \
-./libtgvoip/CongestionControl.cpp \
-./libtgvoip/VoIPServerConfig.cpp \
-./libtgvoip/audio/Resampler.cpp \
-./libtgvoip/NetworkSocket.cpp \
-./libtgvoip/os/posix/NetworkSocketPosix.cpp \
-./libtgvoip/PacketReassembler.cpp \
-./libtgvoip/MessageThread.cpp \
-./libtgvoip/audio/AudioIO.cpp
-
-# WebRTC signal processing
-
-LOCAL_SRC_FILES += \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/ring_buffer.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/auto_corr_to_refl_coef.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/auto_correlation.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/complex_bit_reverse.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/complex_fft.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/copy_set_operations.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/cross_correlation.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/division_operations.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/dot_product_with_scale.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/downsample_fast.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/energy.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/filter_ar.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/filter_ar_fast_q12.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/filter_ma_fast_q12.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/get_hanning_window.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/get_scaling_square.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/ilbc_specific_functions.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/levinson_durbin.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/lpc_to_refl_coef.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/min_max_operations.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/randomization_functions.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/real_fft.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/refl_coef_to_lpc.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/resample.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/resample_48khz.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/resample_by_2.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/resample_by_2_internal.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/resample_fractional.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/spl_init.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/spl_inl.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/spl_sqrt.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/spl_sqrt_floor.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/splitting_filter_impl.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/sqrt_of_one_minus_x_squared.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/vector_scaling_operations.c
-
-LOCAL_SRC_FILES += \
-./libtgvoip/webrtc_dsp/webrtc/base/checks.cc \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aecm/aecm_core.cc \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aecm/aecm_core_c.cc \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aecm/echo_control_mobile.cc \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/utility/delay_estimator.cc \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/utility/delay_estimator_wrapper.cc \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/three_band_filter_bank.cc \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/splitting_filter.cc \
-./libtgvoip/webrtc_dsp/webrtc/system_wrappers/source/cpu_features.cc \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/sparse_fir_filter.cc \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/channel_buffer.cc \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/audio_util.cc
-
-#LOCAL_SRC_FILES += \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/utility/block_mean_calculator.cc \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/utility/ooura_fft.cc \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/logging/apm_data_dumper.cc \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aec/aec_core.cc \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aec/aec_resampler.cc \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aec/echo_cancellation.cc \
-#./libtgvoip/webrtc_dsp/webrtc/common_audio/wav_header.cc \
-#./libtgvoip/webrtc_dsp/webrtc/common_audio/wav_file.cc \
-#./libtgvoip/webrtc_dsp/webrtc/base/stringutils.cc
-
-LOCAL_SRC_FILES += \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/ns/noise_suppression_x.c \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/ns/noise_suppression.c \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/ns/ns_core.c \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/ns/nsx_core_c.c \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/ns/nsx_core.c \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/fft4g.c
-
-LOCAL_SRC_FILES += \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/agc/legacy/analog_agc.c \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/agc/legacy/digital_agc.c
-
-ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
-LOCAL_SRC_FILES += \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aecm/aecm_core_neon.cc.neon \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/min_max_operations_neon.c.neon \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/downsample_fast_neon.c.neon \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/cross_correlation_neon.c.neon \
-./libtgvoip/webrtc_dsp/webrtc/common_audio/signal_processing/filter_ar_fast_q12_armv7.S.neon
-#LOCAL_SRC_FILES += \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aec/aec_core_neon.cc.neon
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/utility/ooura_fft_neon.cc.neon
-LOCAL_SRC_FILES += \
-./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/ns/nsx_core_neon.c.neon
-#LOCAL_ARM_NEON := true
-endif
-
-#ifeq ($(TARGET_ARCH_ABI),x86)
-#LOCAL_SRC_FILES += \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/aec/aec_core_sse2.cc \
-#./libtgvoip/webrtc_dsp/webrtc/modules/audio_processing/utility/ooura_fft_sse2.cc
-#endif
-
-include $(BUILD_STATIC_LIBRARY)
+TGVOIP_ADDITIONAL_CFLAGS := -DTGVOIP_NO_VIDEO
+include $(MY_LOCAL_PATH)/libtgvoip/Android.mk
+LOCAL_PATH := $(MY_LOCAL_PATH) # restore local path after include
 
 include $(CLEAR_VARS)
 
-LOCAL_CPPFLAGS := -Wall -std=c++11 -DANDROID -frtti -DHAVE_PTHREAD -finline-functions -ffast-math -O0
+LOCAL_CPPFLAGS := -Wall -std=c++14 -DANDROID -frtti -DHAVE_PTHREAD -finline-functions -ffast-math -Os
+
 LOCAL_C_INCLUDES += ./jni/boringssl/include/
 LOCAL_ARM_MODE := arm
 LOCAL_MODULE := tgnet
@@ -239,7 +125,6 @@ LOCAL_SRC_FILES := \
 ./tgnet/Request.cpp \
 ./tgnet/Timer.cpp \
 ./tgnet/TLObject.cpp \
-./tgnet/FileLoadOperation.cpp \
 ./tgnet/ProxyCheckInfo.cpp \
 ./tgnet/Handshake.cpp \
 ./tgnet/Config.cpp
@@ -248,7 +133,7 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-LOCAL_CFLAGS := -Wall -DANDROID -DHAVE_MALLOC_H -DHAVE_PTHREAD -DWEBP_USE_THREAD -finline-functions -ffast-math -ffunction-sections -fdata-sections -O0
+LOCAL_CFLAGS := -Wall -DANDROID -DHAVE_MALLOC_H -DHAVE_PTHREAD -DWEBP_USE_THREAD -finline-functions -ffast-math -ffunction-sections -fdata-sections -Os
 LOCAL_C_INCLUDES += ./jni/libwebp/src
 LOCAL_ARM_MODE := arm
 LOCAL_STATIC_LIBRARIES := cpufeatures
@@ -325,14 +210,14 @@ LOCAL_SRC_FILES := \
 ./libwebp/utils/random.c \
 ./libwebp/utils/rescaler.c \
 ./libwebp/utils/thread.c \
-./libwebp/utils/utils.c \
+./libwebp/utils/utils.c
 
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
 LOCAL_CPPFLAGS := -frtti
-LOCAL_CFLAGS += '-DVERSION="1.3.1"' -DFLAC__NO_MD5 -DFLAC__INTEGER_ONLY_LIBRARY -DFLAC__NO_ASM
+LOCAL_CFLAGS += -DVERSION="1.3.1" -DFLAC__NO_MD5 -DFLAC__INTEGER_ONLY_LIBRARY -DFLAC__NO_ASM
 LOCAL_CFLAGS += -D_REENTRANT -DPIC -DU_COMMON_IMPLEMENTATION -fPIC -DHAVE_SYS_PARAM_H
 LOCAL_CFLAGS += -O3 -funroll-loops -finline-functions
 LOCAL_LDLIBS := -lz -lm
@@ -385,15 +270,90 @@ LOCAL_SRC_FILES     := \
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
+
+LOCAL_ARM_MODE  := arm
+LOCAL_MODULE := lz4
+LOCAL_CFLAGS 	:= -w -std=c11 -O3
+
+LOCAL_SRC_FILES     := \
+./lz4/lz4.c \
+./lz4/lz4frame.c \
+./lz4/xxhash.c
+
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_ARM_MODE  := arm
+LOCAL_MODULE := rlottie
+LOCAL_CPPFLAGS := -DNDEBUG -Wall -std=c++14 -DANDROID -fno-rtti -DHAVE_PTHREAD -finline-functions -ffast-math -Os -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -Wnon-virtual-dtor -Woverloaded-virtual -Wno-unused-parameter -fvisibility=hidden
+ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),armeabi-v7a))
+ LOCAL_CFLAGS := -DUSE_ARM_NEON  -fno-integrated-as
+ LOCAL_CPPFLAGS += -DUSE_ARM_NEON  -fno-integrated-as
+else ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),arm64-v8a))
+ LOCAL_CFLAGS := -DUSE_ARM_NEON -D__ARM64_NEON__ -fno-integrated-as
+ LOCAL_CPPFLAGS += -DUSE_ARM_NEON -D__ARM64_NEON__ -fno-integrated-as
+endif
+
+LOCAL_C_INCLUDES := \
+./jni/rlottie/inc \
+./jni/rlottie/src/vector/ \
+./jni/rlottie/src/vector/pixman \
+./jni/rlottie/src/vector/freetype \
+./jni/rlottie/src/vector/stb
+
+LOCAL_SRC_FILES     := \
+./rlottie/src/lottie/lottieanimation.cpp \
+./rlottie/src/lottie/lottieitem.cpp \
+./rlottie/src/lottie/lottiekeypath.cpp \
+./rlottie/src/lottie/lottieloader.cpp \
+./rlottie/src/lottie/lottiemodel.cpp \
+./rlottie/src/lottie/lottieparser.cpp \
+./rlottie/src/lottie/lottieproxymodel.cpp \
+./rlottie/src/vector/freetype/v_ft_math.cpp \
+./rlottie/src/vector/freetype/v_ft_raster.cpp \
+./rlottie/src/vector/freetype/v_ft_stroker.cpp \
+./rlottie/src/vector/pixman/vregion.cpp \
+./rlottie/src/vector/stb/stb_image.cpp \
+./rlottie/src/vector/vbezier.cpp \
+./rlottie/src/vector/vbitmap.cpp \
+./rlottie/src/vector/vbrush.cpp \
+./rlottie/src/vector/vcompositionfunctions.cpp \
+./rlottie/src/vector/vdasher.cpp \
+./rlottie/src/vector/vdebug.cpp \
+./rlottie/src/vector/vdrawable.cpp \
+./rlottie/src/vector/vdrawhelper.cpp \
+./rlottie/src/vector/vdrawhelper_neon.cpp \
+./rlottie/src/vector/velapsedtimer.cpp \
+./rlottie/src/vector/vimageloader.cpp \
+./rlottie/src/vector/vinterpolator.cpp \
+./rlottie/src/vector/vmatrix.cpp \
+./rlottie/src/vector/vpainter.cpp \
+./rlottie/src/vector/vpath.cpp \
+./rlottie/src/vector/vpathmesure.cpp \
+./rlottie/src/vector/vraster.cpp \
+./rlottie/src/vector/vrect.cpp \
+./rlottie/src/vector/vrle.cpp
+
+ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),armeabi-v7a))
+    LOCAL_SRC_FILES += ./rlottie/src/vector/pixman/pixman-arm-neon-asm.S.neon
+else ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),arm64-v8a))
+    LOCAL_SRC_FILES += ./rlottie/src/vector/pixman/pixman-arma64-neon-asm.S.neon
+endif
+
+LOCAL_STATIC_LIBRARIES := cpufeatures
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false
 
-LOCAL_MODULE 	:= tmessages.29
+LOCAL_MODULE 	:= tmessages.30
 LOCAL_CFLAGS 	:= -w -std=c11 -Os -DNULL=0 -DSOCKLEN_T=socklen_t -DLOCALE_NOT_USED -D_LARGEFILE_SOURCE=1
 LOCAL_CFLAGS 	+= -Drestrict='' -D__EMX__ -DOPUS_BUILD -DFIXED_POINT -DUSE_ALLOCA -DHAVE_LRINT -DHAVE_LRINTF -fno-math-errno
 LOCAL_CFLAGS 	+= -DANDROID_NDK -DDISABLE_IMPORTGL -fno-strict-aliasing -fprefetch-loop-arrays -DAVOID_TABLES -DANDROID_TILE_BASED_DECODE -DANDROID_ARMV6_IDCT -ffast-math -D__STDC_CONSTANT_MACROS
-LOCAL_CPPFLAGS 	:= -DBSD=1 -ffast-math -Os -funroll-loops -std=c++11
-LOCAL_LDLIBS 	:= -ljnigraphics -llog -lz -latomic -lOpenSLES -lEGL -lGLESv2 -landroid
-LOCAL_STATIC_LIBRARIES := webp sqlite tgnet avformat avcodec avresample avutil voip flac
+LOCAL_CPPFLAGS 	:= -DBSD=1 -ffast-math -Os -funroll-loops -std=c++14
+LOCAL_LDLIBS 	:= -ljnigraphics -llog -lz -lEGL -lGLESv2 -landroid
+LOCAL_STATIC_LIBRARIES := webp sqlite lz4 rlottie tgnet swscale avformat avcodec avresample avutil voip flac
 
 LOCAL_SRC_FILES     := \
 ./opus/src/opus.c \
@@ -405,17 +365,25 @@ LOCAL_SRC_FILES     := \
 ./opus/src/repacketizer.c \
 ./opus/src/analysis.c \
 ./opus/src/mlp.c \
-./opus/src/mlp_data.c
+./opus/src/mlp_data.c \
+./opus/src/opus_projection_encoder.c \
+./opus/src/opus_projection_decoder.c \
+./opus/src/mapping_matrix.c
 
-ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),armeabi-v7a arm64-v8a))
     LOCAL_ARM_MODE := arm
     LOCAL_CPPFLAGS += -DLIBYUV_NEON
     LOCAL_CFLAGS += -DLIBYUV_NEON
     LOCAL_CFLAGS += -DOPUS_HAVE_RTCD -DOPUS_ARM_ASM
     LOCAL_SRC_FILES += \
-#    ./opus/celt/arm/celt_neon_intr.c \
-#    ./opus/silk/arm/NSQ_neon.c \
-    ./opus/silk/arm/arm_silk_map.c
+    ./opus/celt/arm/celt_neon_intr.c.neon \
+    ./opus/celt/arm/pitch_neon_intr.c.neon \
+    ./opus/silk/arm/NSQ_neon.c.neon \
+    ./opus/silk/arm/arm_silk_map.c \
+    ./opus/silk/arm/LPC_inv_pred_gain_neon_intr.c.neon \
+    ./opus/silk/arm/NSQ_del_dec_neon_intr.c.neon \
+    ./opus/silk/arm/biquad_alt_neon_intr.c.neon \
+    ./opus/silk/fixed/arm/warped_autocorrelation_FIX_neon_intr.c.neon
 
 #    LOCAL_SRC_FILES += ./opus/celt/arm/celt_pitch_xcorr_arm-gnu.S
 
@@ -592,7 +560,9 @@ LOCAL_C_INCLUDES    := \
 ./jni/emoji \
 ./jni/exoplayer/include \
 ./jni/exoplayer/libFLAC/include \
-./jni/intro
+./jni/intro \
+./jni/rlottie/inc \
+./jni/lz4
 
 LOCAL_SRC_FILES     += \
 ./libyuv/source/compare_common.cc \
@@ -647,21 +617,19 @@ endif
 LOCAL_SRC_FILES     += \
 ./jni.c \
 ./audio.c \
-./utils.c \
 ./image.c \
 ./video.c \
 ./intro/IntroRenderer.c \
+./utilities.cpp \
 ./gifvideo.cpp \
+./lottie.cpp \
 ./SqliteWrapper.cpp \
 ./TgNetWrapper.cpp \
 ./NativeLoader.cpp \
-./emoji/emoji_suggestions_data.cpp \
-./emoji/emoji_suggestions.cpp \
 ./exoplayer/flac_jni.cc \
 ./exoplayer/flac_parser.cc \
 ./exoplayer/opus_jni.cc \
 ./exoplayer/ffmpeg_jni.cc \
-./libtgvoip/client/android/tg_voip_jni.cpp \
 ./fast-edge.cpp \
 ./genann.c \
 ./secureid_ocr.cpp
